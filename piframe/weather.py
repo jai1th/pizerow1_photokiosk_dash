@@ -73,6 +73,15 @@ def _aqi_label(us_aqi: int | None) -> tuple[str, str]:
 # ---------------------------------------------------------------------------
 
 def get_location() -> dict:
+    # User-set override from the upload-page settings takes precedence.
+    try:
+        from piframe import settings_store
+        ov = settings_store.load().get("location_override")
+        if ov and ov.get("lat") and ov.get("lon"):
+            return ov
+    except Exception:
+        pass
+
     if config.LOCATION_CACHE.exists():
         try:
             with open(config.LOCATION_CACHE) as f:

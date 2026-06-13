@@ -66,9 +66,20 @@ def _parse_ics(text: str, today: date) -> list[dict]:
     return sorted(events, key=lambda e: e["mins"])
 
 
+def _ics_url() -> str:
+    """Return the active ICS URL: settings (google first, then outlook) or env."""
+    try:
+        from piframe import settings_store
+        s = settings_store.load()
+        return s.get("calendar_google_ics") or s.get("calendar_outlook_ics") or config.CALENDAR_ICS_URL
+    except Exception:
+        return config.CALENDAR_ICS_URL
+
+
 def get_events() -> list[dict]:
-    """Return today's events. Returns [] if calendar is not configured."""
-    if not config.CALENDAR_ICS_URL:
+    """Return today's events. Returns [] if no calendar is configured."""
+    url = _ics_url()
+    if not url:
         return []
 
     with _lock:
@@ -83,7 +94,7 @@ def get_events() -> list[dict]:
 
         try:
             import requests
-            resp = requests.get(config.CALENDAR_ICS_URL, timeout=config.WEATHER_TIMEOUT_SECS)
+            resp = requests.get(url, timeout=config.WEATHER_TIMEOUT_SECS)
             resp.raise_for_status()
             events = _parse_ics(resp.text, date.today())
             cache_path.write_text(json.dumps({"events": events, "fetched_at": time.time()}))

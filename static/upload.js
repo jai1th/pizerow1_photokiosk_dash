@@ -368,3 +368,127 @@ async function loadServerInfo() {
 
 loadGrid();
 loadServerInfo();
+
+// ── Settings ───────────────────────────────────────────────────────────────
+const locCityEl    = document.getElementById('loc-city');
+const locSaveEl    = document.getElementById('loc-save');
+const locResetEl   = document.getElementById('loc-reset');
+const locStatusEl  = document.getElementById('loc-status');
+const calGoogleEl  = document.getElementById('cal-google');
+const calOutlookEl = document.getElementById('cal-outlook');
+const calSaveEl    = document.getElementById('cal-save');
+const calClearEl   = document.getElementById('cal-clear');
+const calStatusEl  = document.getElementById('cal-status');
+
+function setStatus(el, cls, msg) {
+  el.className = 'settings-status ' + cls;
+  el.textContent = msg;
+}
+
+async function loadSettings() {
+  try {
+    const r = await fetch('/api/settings');
+    const d = await r.json();
+    if (d.location_override && d.location_override.city) {
+      locCityEl.value = d.location_override.city + (d.location_override.country ? ', ' + d.location_override.country : '');
+    }
+    if (d.calendar_google_ics) calGoogleEl.value = d.calendar_google_ics;
+    if (d.calendar_outlook_ics) calOutlookEl.value = d.calendar_outlook_ics;
+  } catch (_) {}
+}
+
+locSaveEl.addEventListener('click', async () => {
+  const city = locCityEl.value.trim();
+  if (!city) { setStatus(locStatusEl, 'err', 'Enter a city name.'); return; }
+  locSaveEl.disabled = true;
+  setStatus(locStatusEl, '', 'Looking up…');
+  try {
+    const r = await fetch('/api/settings/location', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({city}),
+    });
+    const d = await r.json();
+    if (!r.ok) { setStatus(locStatusEl, 'err', d.error || 'Failed.'); return; }
+    const loc = d.location_override;
+    locCityEl.value = loc.city + (loc.country ? ', ' + loc.country : '');
+    setStatus(locStatusEl, 'ok', 'Location set — weather will refresh shortly.');
+  } catch (e) {
+    setStatus(locStatusEl, 'err', 'Network error.');
+  } finally {
+    locSaveEl.disabled = false;
+  }
+});
+
+locResetEl.addEventListener('click', async () => {
+  locResetEl.disabled = true;
+  setStatus(locStatusEl, '', 'Resetting…');
+  try {
+    const r = await fetch('/api/settings/location', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({reset: true}),
+    });
+    if (r.ok) {
+      locCityEl.value = '';
+      setStatus(locStatusEl, 'ok', 'Reset — location will be auto-detected.');
+    } else {
+      setStatus(locStatusEl, 'err', 'Failed.');
+    }
+  } catch (e) {
+    setStatus(locStatusEl, 'err', 'Network error.');
+  } finally {
+    locResetEl.disabled = false;
+  }
+});
+
+calSaveEl.addEventListener('click', async () => {
+  calSaveEl.disabled = true;
+  setStatus(calStatusEl, '', 'Saving…');
+  try {
+    const r = await fetch('/api/settings/calendar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        google: calGoogleEl.value.trim(),
+        outlook: calOutlookEl.value.trim(),
+      }),
+    });
+    if (r.ok) {
+      setStatus(calStatusEl, 'ok', 'Calendar saved — events will refresh shortly.');
+    } else {
+      const d = await r.json().catch(() => ({}));
+      setStatus(calStatusEl, 'err', d.error || 'Failed.');
+    }
+  } catch (e) {
+    setStatus(calStatusEl, 'err', 'Network error.');
+  } finally {
+    calSaveEl.disabled = false;
+  }
+});
+
+calClearEl.addEventListener('click', async () => {
+  if (!confirm('Clear all calendar URLs?')) return;
+  calClearEl.disabled = true;
+  setStatus(calStatusEl, '', 'Clearing…');
+  try {
+    const r = await fetch('/api/settings/calendar', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({google: '', outlook: ''}),
+    });
+    if (r.ok) {
+      calGoogleEl.value = '';
+      calOutlookEl.value = '';
+      setStatus(calStatusEl, 'ok', 'Calendar cleared.');
+    } else {
+      setStatus(calStatusEl, 'err', 'Failed.');
+    }
+  } catch (e) {
+    setStatus(calStatusEl, 'err', 'Network error.');
+  } finally {
+    calClearEl.disabled = false;
+  }
+});
+
+loadSettings();

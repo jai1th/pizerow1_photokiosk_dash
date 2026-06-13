@@ -270,6 +270,100 @@ h2 {
 
 .btn-delete:hover { background: var(--danger); }
 
+/* ── Settings ──────────────────────────────────────────────── */
+.settings-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+
+.settings-h3 {
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.settings-desc {
+  font-size: .8rem;
+  color: var(--text-muted);
+}
+
+.settings-label {
+  display: block;
+  font-size: .8rem;
+  font-weight: 500;
+}
+
+.settings-hint {
+  font-size: .72rem;
+  color: var(--text-muted);
+  margin-top: -.25rem;
+}
+
+.settings-row {
+  display: flex;
+  gap: .5rem;
+  align-items: stretch;
+  flex-wrap: wrap;
+}
+
+.settings-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: .85rem;
+  padding: .45rem .65rem;
+  outline: none;
+  transition: border-color .15s;
+}
+
+.settings-input:focus { border-color: var(--accent); }
+.settings-input::placeholder { color: var(--text-muted); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: .45rem .9rem;
+  font-size: .85rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s;
+}
+
+.btn-primary:hover { background: var(--accent-dark); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: .45rem .9rem;
+  font-size: .85rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+}
+
+.btn-ghost:hover { color: var(--text); border-color: rgba(255,255,255,.25); }
+
+.settings-status {
+  font-size: .78rem;
+  min-height: 1.1em;
+  transition: color .2s;
+}
+
+.settings-status.ok  { color: #66BB6A; }
+.settings-status.err { color: var(--danger); }
+
 /* ── Footer ────────────────────────────────────────────────── */
 footer {
   padding: .75rem 1rem;

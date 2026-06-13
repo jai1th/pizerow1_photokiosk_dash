@@ -43,6 +43,48 @@
       <div id="photo-grid" aria-label="Current photos"></div>
     </section>
 
+    <!-- Settings -->
+    <section class="section-block" id="settings-section">
+      <h2>Settings</h2>
+
+      <!-- Location -->
+      <div class="settings-card">
+        <h3 class="settings-h3">Location</h3>
+        <p class="settings-desc">Set a city to override the auto-detected location used for weather.</p>
+        <div class="settings-row">
+          <input type="text" id="loc-city" class="settings-input" placeholder="e.g. New York" autocomplete="off" spellcheck="false">
+          <button type="button" id="loc-save" class="btn-primary">Set</button>
+          <button type="button" id="loc-reset" class="btn-ghost">Auto-detect</button>
+        </div>
+        <div id="loc-status" class="settings-status" aria-live="polite"></div>
+      </div>
+
+      <!-- Calendar -->
+      <div class="settings-card">
+        <h3 class="settings-h3">Calendar</h3>
+        <p class="settings-desc">Paste an ICS link to show today's events on the kiosk.</p>
+
+        <label class="settings-label" for="cal-google">Google Calendar ICS URL</label>
+        <p class="settings-hint">Google Calendar → ⋮ → Settings → Secret address in iCal format</p>
+        <div class="settings-row">
+          <input type="url" id="cal-google" class="settings-input" placeholder="https://calendar.google.com/calendar/ical/…" spellcheck="false">
+        </div>
+
+        <label class="settings-label" for="cal-outlook" style="margin-top:.75rem">Microsoft Outlook ICS URL</label>
+        <p class="settings-hint">Outlook → Calendar → Share → Publish → ICS link</p>
+        <div class="settings-row">
+          <input type="url" id="cal-outlook" class="settings-input" placeholder="https://outlook.live.com/owa/calendar/…" spellcheck="false">
+        </div>
+
+        <div class="settings-row" style="margin-top:.5rem">
+          <button type="button" id="cal-save" class="btn-primary">Save calendar</button>
+          <button type="button" id="cal-clear" class="btn-ghost">Clear</button>
+        </div>
+        <div id="cal-status" class="settings-status" aria-live="polite"></div>
+      </div>
+
+    </section>
+
   </main>
 
   <footer>

@@ -7,10 +7,11 @@ import tempfile
 import time
 from pathlib import Path
 
+import requests as _requests
 from flask import Blueprint, jsonify, request, send_file, abort
 
 import config
-from piframe import photos, weather
+from piframe import photos, weather, settings_store
 from piframe.util import sha256_fileobj
 
 api_bp = Blueprint("api", __name__)
@@ -111,6 +112,76 @@ def api_delete_photo(content_hash):
         abort(404)
     photos.delete_photo(safe)
     return "", 204
+
+
+# ---------------------------------------------------------------------------
+# Settings
+# ---------------------------------------------------------------------------
+
+@api_bp.route("/api/settings", methods=["GET"])
+def api_settings_get():
+    s = settings_store.load()
+    return jsonify({
+        "location_override": s.get("location_override"),
+        "calendar_google_ics": s.get("calendar_google_ics", ""),
+        "calendar_outlook_ics": s.get("calendar_outlook_ics", ""),
+    })
+
+
+@api_bp.route("/api/settings/location", methods=["POST"])
+def api_settings_location():
+    data = request.get_json(force=True, silent=True) or {}
+
+    if data.get("reset"):
+        settings_store.update({"location_override": None})
+        config.WEATHER_CACHE.unlink(missing_ok=True)
+        config.LOCATION_CACHE.unlink(missing_ok=True)
+        return jsonify({"status": "ok", "location_override": None})
+
+    city = data.get("city", "").strip()
+    if not city:
+        return jsonify({"error": "city required"}), 400
+
+    try:
+        r = _requests.get(
+            "https://geocoding-api.open-meteo.com/v1/search",
+            params={"name": city, "count": 1, "language": "en", "format": "json"},
+            timeout=10,
+        )
+        r.raise_for_status()
+        results = r.json().get("results", [])
+        if not results:
+            return jsonify({"error": f"city not found: {city}"}), 404
+        res = results[0]
+        loc = {
+            "lat": res["latitude"],
+            "lon": res["longitude"],
+            "city": res.get("name", city),
+            "country": res.get("country", ""),
+            "approximate": False,
+        }
+    except Exception as exc:
+        log.warning("geocode failed: %s", exc)
+        return jsonify({"error": str(exc)}), 502
+
+    settings_store.update({"location_override": loc})
+    config.WEATHER_CACHE.unlink(missing_ok=True)
+    return jsonify({"status": "ok", "location_override": loc})
+
+
+@api_bp.route("/api/settings/calendar", methods=["POST"])
+def api_settings_calendar():
+    data = request.get_json(force=True, silent=True) or {}
+    patch = {}
+    if "google" in data:
+        patch["calendar_google_ics"] = data["google"].strip()
+    if "outlook" in data:
+        patch["calendar_outlook_ics"] = data["outlook"].strip()
+    if not patch:
+        return jsonify({"error": "provide google and/or outlook key"}), 400
+    settings_store.update(patch)
+    config.CALENDAR_CACHE.unlink(missing_ok=True)
+    return jsonify({"status": "ok"})
 
 
 # ---------------------------------------------------------------------------
