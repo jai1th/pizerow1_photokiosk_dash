@@ -1,5 +1,8 @@
+import base64
 import socket
 from datetime import date
+from functools import lru_cache
+from pathlib import Path
 
 from flask import Blueprint, render_template, request, make_response
 
@@ -7,6 +10,35 @@ import config
 from piframe import photos, weather
 
 pages_bp = Blueprint("pages", __name__)
+
+# ---------------------------------------------------------------------------
+# Inlined static assets
+#
+# This board's ARMv6 WebKit intermittently deadlocks on subresource loads
+# (the WTF flock bug that also kills fetch/XHR): the server returns the CSS /
+# JS / icon 200, but the body never reaches the renderer, so the page shows
+# unstyled (raw document flow). The document HTML itself always renders, so we
+# inline the layout-critical assets straight into it — no separate request to
+# deadlock. slideshow.css / slideshow.js stay the single source of truth on
+# disk; we just read and embed them at render time. Only photos remain as
+# <img> subresources (too large to inline); if one blips, the frame still holds.
+# ---------------------------------------------------------------------------
+
+_STATIC = config.BASE_DIR / "static"
+
+
+def _read_text(p: Path) -> str:
+    try:
+        return p.read_text(encoding="utf-8")
+    except Exception:
+        return ""
+
+
+# Cached at import — these don't change at runtime, and the service restarts
+# (re-importing this module) whenever they're redeployed. Minimises SD reads.
+_INLINE_CSS = _read_text(_STATIC / "slideshow.css")
+_INLINE_JS = _read_text(_STATIC / "slideshow.js")
+_ICONS = {p.stem: _read_text(p) for p in sorted((_STATIC / "icons").glob("*.svg"))}
 
 
 def _pi_ip() -> str:
@@ -16,6 +48,28 @@ def _pi_ip() -> str:
             return s.getsockname()[0]
     except Exception:
         return "127.0.0.1"
+
+
+@lru_cache(maxsize=16)
+def _encode_photo(filename: str, mtime_ns: int) -> str:
+    """Read a display JPEG and return a base64 data URI. Cached by
+    (filename, mtime) so repeated reloads don't re-encode the same photos;
+    the mtime in the key auto-invalidates a replaced file. Bounded to 16
+    entries (~8 MB worst case) so a large library can't blow up RAM."""
+    raw = (config.DISPLAY_DIR / filename).read_bytes()
+    return "data:image/jpeg;base64," + base64.b64encode(raw).decode("ascii")
+
+
+def _photo_data_uri(filename: str) -> str:
+    # Photos are inlined as data URIs rather than <img src="/photos/..">: this
+    # board's ARMv6 WebKit intermittently deadlocks on subresource loads, which
+    # left the slideshow stage black. Inlining makes the page 100% self-
+    # contained (zero subresources) — the reliable navigation path delivers it.
+    try:
+        st = (config.DISPLAY_DIR / filename).stat()
+        return _encode_photo(filename, st.st_mtime_ns)
+    except Exception:
+        return ""
 
 
 def _weekday(iso: str) -> str:
@@ -90,7 +144,8 @@ def slideshow():
     if count > 0:
         offset = offset % count
         n = min(config.SLIDE_BATCH, count)
-        batch = [all_photos[(offset + i) % count] for i in range(n)]
+        names = [all_photos[(offset + i) % count] for i in range(n)]
+        batch = [u for u in (_photo_data_uri(f) for f in names) if u]
         next_offset = (offset + n) % count
     else:
         batch = []
@@ -105,6 +160,9 @@ def slideshow():
         next_offset=next_offset,
         w=_format_weather(weather.get_weather()),
         pi_ip=_pi_ip(),
+        inline_css=_INLINE_CSS,
+        inline_js=_INLINE_JS,
+        icons=_ICONS,
     )
     # The page reloads itself to refresh weather/photos, so it must never be
     # served from the browser cache — always render fresh.

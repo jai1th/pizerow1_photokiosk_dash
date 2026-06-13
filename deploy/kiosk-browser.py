@@ -15,6 +15,19 @@ from gi.repository import Gtk, WebKit2, GLib, Gdk
 
 URL = os.environ.get('PIFRAME_URL', 'http://127.0.0.1:5000/')
 
+# Paint everything black. The slideshow refreshes itself with a full-page
+# navigation (the only reliable load path on this ARMv6 WebKit); during that
+# navigation the view briefly shows its base background. Default is white,
+# which flashed every ~30s against the otherwise-black UI. Black window +
+# black WebView base = the reload is invisible.
+try:
+    _css = Gtk.CssProvider()
+    _css.load_from_data(b'window, * { background-color: #000; }')
+    Gtk.StyleContext.add_provider_for_screen(
+        Gdk.Screen.get_default(), _css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+except Exception as e:
+    print(f'kiosk: window bg warning: {e}', flush=True)
+
 win = Gtk.Window()
 win.set_title('PiFrame')
 win.set_default_size(1920, 1080)
@@ -28,6 +41,10 @@ def _make_view():
     global _view
     ctx = WebKit2.WebContext.new()
     v = WebKit2.WebView.new_with_context(ctx)
+    try:
+        v.set_background_color(Gdk.RGBA(0.0, 0.0, 0.0, 1.0))  # black, not white
+    except Exception as e:
+        print(f'kiosk: webview bg warning: {e}', flush=True)
     v.connect('load-changed', _on_load_changed)
     v.connect('load-failed', _on_load_failed)
     v.connect('web-process-terminated', _on_web_process_terminated)

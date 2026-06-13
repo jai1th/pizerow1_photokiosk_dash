@@ -91,6 +91,12 @@ allowed_users=anybody
 needs_root_rights=auto
 EOF
 
+# Keep the display always on: disable X screensaver blanking + DPMS.
+# (Without this, the fbdev X server blanks the screen after ~10 min idle.)
+info "Disabling screen blanking / DPMS..."
+mkdir -p /etc/X11/xorg.conf.d
+cp "$INSTALL_DIR/deploy/10-piframe-noblank.conf" /etc/X11/xorg.conf.d/10-piframe-noblank.conf
+
 # ── 5. Systemd units ───────────────────────────────────────────────────────
 info "Installing systemd units..."
 cp "$INSTALL_DIR/deploy/piframe.service"       /etc/systemd/system/piframe.service

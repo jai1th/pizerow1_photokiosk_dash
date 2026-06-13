@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PiFrame</title>
-  <link rel="stylesheet" href="/static/slideshow.css?v=6">
+  <!-- CSS inlined (not <link>) — ARMv6 WebKit deadlocks on subresource loads -->
+  <style>{{ inline_css | safe }}</style>
 </head>
 <body>
 
@@ -26,7 +27,7 @@
   <!-- ══ LEFT SIDEBAR · current weather (server-rendered) ═════════ -->
   <aside id="side-bar">
     <div class="card weather-now">
-      <img class="w-icon" src="/static/icons/{{ w.icon }}.svg" alt="">
+      <span class="w-icon">{{ icons.get(w.icon, '') | safe }}</span>
       <div class="w-temp">{{ w.temp }}&deg;</div>
       <div class="w-condition">{{ w.condition }}</div>
       <div class="w-city">{{ w.city }}</div>
@@ -50,8 +51,8 @@
   <!-- ══ STAGE · slideshow (server-rendered <img>, opacity crossfade) ═ -->
   <main id="stage">
     <div id="slideshow">
-      {% for f in photos %}
-      <img class="slide-layer" src="/photos/{{ f }}" alt="">
+      {% for src in photos %}
+      <img class="slide-layer{% if loop.first %} visible{% endif %}" src="{{ src }}" alt="">
       {% endfor %}
     </div>
 
@@ -83,7 +84,7 @@
         {% for d in w.daily %}
         <div class="fc-day">
           <div class="fc-label">{{ d.label }}</div>
-          <img class="fc-icon" src="/static/icons/{{ d.icon }}.svg" alt="">
+          <span class="fc-icon">{{ icons.get(d.icon, '') | safe }}</span>
           <div class="fc-temps"><span class="fc-max">{{ d.tmax }}&deg;</span><span class="fc-min">{{ d.tmin }}&deg;</span></div>
           <div class="fc-rain">{{ d.rain }}%</div>
         </div>
@@ -107,6 +108,7 @@
     const NEXT_OFFSET   = {{ next_offset }};
     const PHOTO_COUNT   = {{ photo_count }};
   </script>
-  <script src="/static/slideshow.js?v=6"></script>
+  <!-- JS inlined (not src=) — ARMv6 WebKit deadlocks on subresource loads -->
+  <script>{{ inline_js | safe }}</script>
 </body>
 </html>

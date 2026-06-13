@@ -10,7 +10,10 @@
    batch + fresh weather + any newly uploaded photos. */
 
 const CLOCK_TICK_MS    = 15 * 1000;
-const NO_PHOTO_RELOAD  = 30 * 1000;   // when empty, re-check for uploads
+const NO_PHOTO_RELOAD  = 30 * 1000;        // when empty, re-check for uploads
+const REFRESH_MS       = 10 * 60 * 1000;   // full reload every 10 min: advances
+                                           // the photo batch + refreshes weather
+                                           // (and picks up new uploads)
 
 document.documentElement.style.setProperty('--fade-ms', FADE_MS + 'ms');
 
@@ -35,34 +38,36 @@ function tickClock() {
 tickClock();
 setInterval(tickClock, CLOCK_TICK_MS);
 
-// ── Slideshow: crossfade pre-rendered layers, then reload ───────────────────
+// ── Slideshow: loop the crossfade through this batch continuously ───────────
+// A full page reload is the only reliable way to load new content on this
+// ARMv6 WebKit, but reloads are heavy (the photos are inlined) and briefly
+// blank the stage. So we DON'T reload to change photos — we crossfade through
+// the batch on a loop, indefinitely, and reload only every REFRESH_MS to
+// advance the batch + refresh weather + pick up uploads. One rare blink every
+// 10 min instead of one every ~30 s.
 const layers = Array.from(document.querySelectorAll('.slide-layer'));
 let cur = 0;
 
-function reloadBatch() {
-  // Navigation load (reliable). Brings the next batch + fresh weather +
-  // any newly uploaded/removed photos.
+function reloadPage() {
   window.location.replace('/?o=' + NEXT_OFFSET);
 }
 
 function nextSlide() {
-  // After the last image in this batch has shown, reload for the next batch.
-  if (cur >= layers.length - 1) {
-    reloadBatch();
-    return;
-  }
-  const nxt = cur + 1;
+  if (layers.length <= 1) return;          // nothing to crossfade
+  const nxt = (cur + 1) % layers.length;   // wrap around — infinite loop
   layers[nxt].classList.add('visible');
   layers[cur].classList.remove('visible');
   cur = nxt;
-  setTimeout(nextSlide, SLIDE_SECONDS * 1000);
 }
 
 if (layers.length === 0) {
   // No photos: periodically reload so uploads appear without a manual refresh.
-  setTimeout(reloadBatch, NO_PHOTO_RELOAD);
+  setTimeout(reloadPage, NO_PHOTO_RELOAD);
 } else {
-  // Fade the first image in (also masks the reload flash), then start cycling.
-  requestAnimationFrame(() => layers[0].classList.add('visible'));
-  setTimeout(nextSlide, SLIDE_SECONDS * 1000);
+  // layers[0] is server-rendered with the .visible class already applied.
+  // We deliberately do NOT use requestAnimationFrame to reveal it: rAF does
+  // not fire reliably on this board (compositing is disabled), which left the
+  // stage black. setInterval-driven crossfades work fine.
+  setInterval(nextSlide, SLIDE_SECONDS * 1000);
+  setTimeout(reloadPage, REFRESH_MS);
 }
