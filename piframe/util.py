@@ -10,6 +10,8 @@ def configure_logging() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
         datefmt="%Y-%m-%dT%H:%M:%S",
     )
+    # Enable waitress HTTP access log
+    logging.getLogger("waitress.access").setLevel(logging.INFO)
 
 
 def sha256_fileobj(f) -> str:
