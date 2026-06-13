@@ -30,20 +30,21 @@ apt-get install -y --no-install-recommends \
     rsync \
     python3-pip
 
-# Kiosk browser: surf under a minimal X stack.
-# Debian's cog package ships only the fdo (Wayland) platform plugin — the DRM
-# plugin required by "cog -P drm" is absent on ARMv6 builds.  surf + fbdev X
-# works reliably on the Pi Zero W 1.
-#
-# To use cog instead (e.g. on a board with a DRM-capable cog build), install
-# it manually and change ExecStart in piframe-kiosk.service to:
-#   ExecStart=/usr/bin/cog -P drm http://127.0.0.1:5000/
+# Kiosk browser: Python GTK+WebKit2 under a minimal X/fbdev stack.
+# surf triggers "Invalid value for lock" on BCM2835/ARMv6 due to a subprocess
+# IPC FD setup failure.  The GTK+WebKit2 Python launcher (deploy/kiosk-browser.py)
+# uses the same WebKit engine but avoids the surf-specific lock initialisation.
+# Debian's cog package on ARMv6 ships only the fdo (Wayland) platform plugin —
+# the DRM plugin required by "cog -P drm" is absent, so cog is not viable here.
 apt-get install -y --no-install-recommends \
     xserver-xorg \
     xserver-xorg-video-fbdev \
     xserver-xorg-legacy \
     xinit \
-    surf
+    python3-gi \
+    python3-gi-cairo \
+    gir1.2-gtk-3.0 \
+    gir1.2-webkit2-4.1
 
 # ── 2. Python packages (piwheels pre-built wheels for ARMv6) ───────────────
 info "Installing Python packages..."

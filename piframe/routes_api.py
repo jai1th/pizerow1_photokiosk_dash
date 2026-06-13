@@ -142,8 +142,9 @@ def api_status():
             pass
 
     try:
-        hostname = socket.gethostname()
-        pi_ip = socket.gethostbyname(hostname)
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+            s.connect(("8.8.8.8", 80))
+            pi_ip = s.getsockname()[0]
     except Exception:
         pi_ip = "unknown"
 

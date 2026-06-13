@@ -1,15 +1,14 @@
 [Unit]
-Description=PiFrame kiosk browser (surf/WebKit via X/fbdev)
+Description=PiFrame kiosk browser (GTK+WebKit2 via X/fbdev)
 # Start after the backend unit has been activated; the ExecStartPre wait-loop
 # below ensures we don't try to open the browser until Flask is responding.
 After=piframe.service
 Wants=piframe.service
 
 [Service]
-User=dietpi
-# video group gives the X server (running setuid via xserver-xorg-legacy)
-# access to /dev/fb0 and input devices on the Pi's framebuffer.
-SupplementaryGroups=video
+User=root
+# Running as root avoids a WebKit2 IPC shared-memory lock failure that occurs
+# when the service runs as a non-root user (uid 1000) without a login session.
 
 # Poll /api/status until the backend answers (up to 120 s).
 # Tries every 2 s; exits 1 on timeout so systemd will restart and retry.
@@ -21,7 +20,16 @@ ExecStartPre=/bin/bash -c '\
   echo "piframe-kiosk: backend not ready after 120 s" >&2; \
   exit 1'
 
-ExecStart=/usr/bin/xinit /usr/bin/surf -F http://127.0.0.1:5000/ -- :0 vt1
+ExecStartPre=/bin/bash -c 'mkdir -p /tmp/xdg-piframe && chmod 700 /tmp/xdg-piframe'
+
+ExecStart=/bin/bash -c '\
+  export WEBKIT_DISABLE_COMPOSITING_MODE=1 \
+         WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
+         WEBKIT_DISABLE_DMABUF_RENDERER=1 \
+         XDG_RUNTIME_DIR=/tmp/xdg-piframe \
+         PIFRAME_URL=http://127.0.0.1:5000/ \
+         DBUS_SESSION_BUS_ADDRESS=disabled; \
+  exec xinit /usr/bin/python3 /opt/piframe/deploy/kiosk-browser.py -- :0 vt7 2>&1'
 
 Restart=always
 RestartSec=3
