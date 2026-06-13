@@ -24,6 +24,10 @@ JPEG_QUALITY = 85
 # Slideshow
 SLIDE_SECONDS = int(os.getenv("PIFRAME_SLIDE_SECONDS", 10))
 FADE_MS = int(os.getenv("PIFRAME_FADE_MS", 1500))
+# Photos rendered into each page load (server-rendered, navigation-loaded).
+# The page crossfades through this batch, then reloads for the next batch.
+# Kept small to bound memory on the Pi Zero W (each ~1080p JPEG decodes large).
+SLIDE_BATCH = int(os.getenv("PIFRAME_SLIDE_BATCH", 6))
 
 # Weather
 WEATHER_REFRESH_SECS = 15 * 60

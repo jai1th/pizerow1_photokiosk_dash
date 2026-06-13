@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PiFrame</title>
-  <link rel="stylesheet" href="/static/slideshow.css?v=2">
+  <link rel="stylesheet" href="/static/slideshow.css?v=6">
 </head>
 <body>
 
@@ -23,70 +23,90 @@
     </div>
   </header>
 
-  <!-- ══ LEFT SIDEBAR · current weather ═══════════════════════════ -->
-  <aside id="side-bar" aria-live="polite">
+  <!-- ══ LEFT SIDEBAR · current weather (server-rendered) ═════════ -->
+  <aside id="side-bar">
     <div class="card weather-now">
-      <img id="w-icon" class="w-icon" src="" alt="" width="64" height="64" hidden>
-      <div class="w-temp" id="w-temp">--°</div>
-      <div class="w-condition" id="w-condition"></div>
-      <div class="w-city" id="w-city"></div>
+      <img class="w-icon" src="/static/icons/{{ w.icon }}.svg" alt="">
+      <div class="w-temp">{{ w.temp }}&deg;</div>
+      <div class="w-condition">{{ w.condition }}</div>
+      <div class="w-city">{{ w.city }}</div>
     </div>
 
     <div class="card w-stats">
-      <div class="stat"><span class="stat-label">Feels</span><span class="stat-val" id="w-feels">--°</span></div>
-      <div class="stat"><span class="stat-label">Humidity</span><span class="stat-val" id="w-humidity">--%</span></div>
-      <div class="stat"><span class="stat-label">Wind</span><span class="stat-val" id="w-wind">-- km/h</span></div>
+      <div class="stat"><span class="stat-label">Feels</span><span class="stat-val">{{ w.feels }}&deg;</span></div>
+      <div class="stat"><span class="stat-label">Humidity</span><span class="stat-val">{{ w.humidity }}%</span></div>
+      <div class="stat"><span class="stat-label">Wind</span><span class="stat-val">{{ w.wind }} km/h</span></div>
     </div>
 
-    <div class="card aqi-card" id="aqi-card">
+    <div class="card aqi-card" style="--aqi-color: {{ w.aqi_color }}">
       <div class="aqi-row">
-        <span class="aqi-value" id="aqi-value">--</span>
+        <span class="aqi-value">{{ w.aqi }}</span>
         <span class="aqi-tag">AQI</span>
       </div>
-      <div class="aqi-label" id="aqi-label">&nbsp;</div>
+      <div class="aqi-label">{{ w.aqi_label }}</div>
     </div>
   </aside>
 
-  <!-- ══ STAGE · slideshow (16:9) ═════════════════════════════════ -->
+  <!-- ══ STAGE · slideshow (server-rendered <img>, opacity crossfade) ═ -->
   <main id="stage">
     <div id="slideshow">
-      <img id="layer-a" class="slide-layer" alt="">
-      <img id="layer-b" class="slide-layer" alt="">
+      {% for f in photos %}
+      <img class="slide-layer" src="/photos/{{ f }}" alt="">
+      {% endfor %}
     </div>
 
-    <!-- Shown only when there are zero photos -->
-    <div id="no-photos" hidden>
+    {% if photo_count == 0 %}
+    <div id="no-photos">
       <div class="card no-photos-card">
         <p class="np-title">No photos yet</p>
         <p class="np-sub">Add photos at</p>
-        <p class="np-url" id="upload-url"></p>
+        <p class="np-url">http://{{ pi_ip }}:5000/upload</p>
       </div>
     </div>
+    {% endif %}
   </main>
 
-  <!-- ══ BOTTOM BAR · forecast ════════════════════════════════════ -->
+  <!-- ══ BOTTOM BAR · forecast (server-rendered) ══════════════════ -->
   <footer id="bottom-bar">
     <div class="card rain-card">
-      <div class="card-title">Rain · next 12 h</div>
-      <div id="rain-strip" aria-hidden="true"></div>
+      <div class="card-title">Rain &middot; next 12 h</div>
+      <div id="rain-strip">
+        {% for p in w.hourly %}
+        <div class="rain-bar" style="height: {{ p }}%"></div>
+        {% endfor %}
+      </div>
     </div>
 
     <div class="card daily-card">
       <div class="card-title">3-day</div>
-      <div id="daily-forecast"></div>
+      <div id="daily-forecast">
+        {% for d in w.daily %}
+        <div class="fc-day">
+          <div class="fc-label">{{ d.label }}</div>
+          <img class="fc-icon" src="/static/icons/{{ d.icon }}.svg" alt="">
+          <div class="fc-temps"><span class="fc-max">{{ d.tmax }}&deg;</span><span class="fc-min">{{ d.tmin }}&deg;</span></div>
+          <div class="fc-rain">{{ d.rain }}%</div>
+        </div>
+        {% endfor %}
+      </div>
     </div>
 
     <div id="w-footer">
-      <span id="w-stale" hidden>⚠ Stale</span>
+      {% if w.stale %}<span id="w-stale">&#9888; Stale</span>{% endif %}
       <span id="w-credit">Weather by <a href="https://open-meteo.com" tabindex="-1">Open-Meteo</a></span>
     </div>
   </footer>
 
   <script>
-    /* Config injected from server — single source of truth */
+    /* Config injected from server — single source of truth.
+       NOTE: this page uses NO fetch()/XHR/dynamic img.src — that path
+       deadlocks the WTF lock in this ARMv6 WebKit build. All data is
+       server-rendered above; updates happen via full-page reload. */
     const SLIDE_SECONDS = {{ slide_seconds }};
     const FADE_MS       = {{ fade_ms }};
+    const NEXT_OFFSET   = {{ next_offset }};
+    const PHOTO_COUNT   = {{ photo_count }};
   </script>
-  <script src="/static/slideshow.js?v=2"></script>
+  <script src="/static/slideshow.js?v=6"></script>
 </body>
 </html>

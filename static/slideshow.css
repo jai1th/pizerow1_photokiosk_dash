@@ -1,44 +1,38 @@
 /* ════════════════════════════════════════════════════════════════
-   PiFrame slideshow — Material 3 "Batman" theme
-   Black frame · dark-grey cards · yellow accents · grey secondary
-   Layout: full-bleed frame around a 16:9 photo stage
-     ┌──────────── top bar (times) ────────────┐
-     │ side │                                   │
-     │ bar  │        16:9 photo stage           │
-     └────────── bottom bar (forecast) ─────────┘
-   On a 1920×1080 (16:9) screen: 24% sidebar + 12%/12% bars ⇒
-   stage is exactly 76%×76% = 16:9.
+   PiFrame slideshow — minimal dark theme
+   Pure black · grey hairlines · yellow headings · white data
+   Intricate geometric pattern (fine grid + diagonal cross-hatch +
+   centered dots) across the frame; photo stage stays pure black.
+   Layout: full-bleed frame around a 16:9 photo stage.
+   On a 1920×1080 (16:9) screen: 22% sidebar + 11%/11% bars ⇒
+   stage is exactly 78%×78% = 16:9 (sidebar% = 2 × bar%).
    ════════════════════════════════════════════════════════════════ */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Surfaces (Material 3 dark, true-black base) */
-  --bg:          #000000;
-  --surface:     #15151a;
-  --surface-2:   #1d1d24;
-  --outline:     rgba(255, 255, 255, .08);
+  --bg:         #000000;
+  --line:       #383838;                   /* grey hairlines / borders   */
+  --grid:       rgba(255, 255, 255, .075); /* orthogonal grid lines      */
+  --grid-d:     rgba(255, 255, 255, .055); /* diagonal cross-hatch       */
+  --dot:        rgba(255, 255, 255, .17);  /* centered dots              */
+  --primary:    #ffd23f;                   /* yellow — headings only      */
+  --text:       #ffffff;                   /* white — data                */
+  --text-dim:   #949aa3;                   /* grey — secondary            */
+  --text-faint: #565b62;
 
-  /* Batman palette */
-  --primary:     #ffd23f;   /* yellow accent  */
-  --primary-dim: #b8973a;   /* muted gold     */
-
-  /* Text */
-  --text:        #f3f3f3;
-  --text-dim:    #9aa0a6;   /* grey secondary */
-  --text-faint:  #5f636a;
-
-  /* Geometry */
-  --radius:      18px;
-  --radius-sm:   12px;
-  --pad:         clamp(.6rem, 1.1vw, 1.1rem);
-  --gap:         clamp(.5rem, .9vw, 1rem);
+  --radius:     8px;
+  --radius-sm:  6px;
+  --pad:        clamp(.5rem, 1vw, 1rem);
+  --gap:        clamp(.45rem, .85vw, .9rem);
 }
+
+html { font-size: 17px; }                  /* gentle global text bump */
 
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
-  background: var(--bg);
+  background-color: var(--bg);
   color: var(--text);
   cursor: none;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -47,9 +41,20 @@ html, body {
 }
 
 body {
+  /* Intricate geometric texture: 24px grid + diagonal cross-hatch
+     (18px) + a dot centered in each cell. All very faint over black. */
+  background-image:
+    radial-gradient(circle at center, var(--dot) 0 .9px, transparent 1.7px),
+    repeating-linear-gradient(45deg,  var(--grid-d) 0 1px, transparent 1px 18px),
+    repeating-linear-gradient(135deg, var(--grid-d) 0 1px, transparent 1px 18px),
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 24px 24px, auto, auto, 24px 24px, 24px 24px;
+  background-position: 12px 12px, 0 0, 0 0, 0 0, 0 0;
+
   display: grid;
-  grid-template-columns: 24% 1fr;
-  grid-template-rows: 12% 1fr 12%;
+  grid-template-columns: 22% 1fr;
+  grid-template-rows: 11% 1fr 11%;
   grid-template-areas:
     "top    top"
     "side   stage"
@@ -58,20 +63,20 @@ body {
   padding: var(--gap);
 }
 
-/* ── Generic card ─────────────────────────────────────────────── */
+/* ── Generic card: black with a grey hairline (no fill) ───────── */
 .card {
-  background: var(--surface);
-  border: 1px solid var(--outline);
+  background: transparent;
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--pad);
 }
 
 .card-title {
-  font-size: .62rem;
+  font-size: .7rem;
   text-transform: uppercase;
-  letter-spacing: .14em;
-  color: var(--primary-dim);
-  margin-bottom: .4rem;
+  letter-spacing: .18em;
+  color: var(--primary);                    /* yellow heading */
+  margin-bottom: .35rem;
 }
 
 /* ════ TOP BAR · times ════════════════════════════════════════ */
@@ -81,47 +86,43 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--gap);
-  padding: 0 .4rem;
+  padding: 0 .3rem;
 }
 
 .clock-local {
-  font-size: clamp(2.4rem, 6vh, 4.5rem);
-  font-weight: 300;
-  letter-spacing: .04em;
+  font-size: clamp(3rem, 7.4vh, 5.4rem);
+  font-weight: 200;
+  letter-spacing: .05em;
   line-height: 1;
-  color: var(--primary);
+  color: var(--text);                       /* white */
 }
 
-.zone-clocks {
-  display: flex;
-  gap: var(--gap);
-  height: 100%;
-  align-items: center;
-}
+.zone-clocks { display: flex; gap: var(--gap); height: 100%; align-items: center; }
 
 .tz-card {
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: flex-end;
-  background: var(--surface);
-  border: 1px solid var(--outline);
+  background: transparent;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
-  padding: .35rem .9rem;
+  padding: .35rem 1rem;
   min-width: clamp(7rem, 12vw, 11rem);
 }
 
 .tz-name {
-  font-size: .6rem;
+  font-size: .64rem;
   text-transform: uppercase;
-  letter-spacing: .16em;
-  color: var(--text-dim);
+  letter-spacing: .2em;
+  color: var(--primary);                    /* yellow heading */
 }
 
 .tz-time {
-  font-size: clamp(1.1rem, 3vh, 1.9rem);
-  font-weight: 400;
+  font-size: clamp(1.4rem, 3.8vh, 2.4rem);
+  font-weight: 300;
   line-height: 1.1;
+  color: var(--text);                       /* white */
 }
 
 /* ════ LEFT SIDEBAR · current weather ═════════════════════════ */
@@ -137,88 +138,74 @@ body {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: .15rem;
+  gap: .1rem;
   flex: 1 1 auto;
   justify-content: center;
 }
 
 .w-icon {
-  width: clamp(48px, 7vh, 80px);
-  height: clamp(48px, 7vh, 80px);
-  margin-bottom: .3rem;
+  width: clamp(48px, 6.5vh, 76px);
+  height: clamp(48px, 6.5vh, 76px);
+  margin-bottom: .25rem;
+  opacity: .92;
 }
 
 .w-temp {
-  font-size: clamp(2.6rem, 8vh, 5rem);
+  font-size: clamp(2.8rem, 8vh, 5rem);
   font-weight: 200;
   line-height: .95;
   color: var(--text);
 }
 
 .w-condition {
-  font-size: clamp(.9rem, 2.4vh, 1.25rem);
+  font-size: clamp(.95rem, 2.3vh, 1.3rem);
   color: var(--text);
-  margin-top: .25rem;
+  margin-top: .2rem;
 }
 
-.w-city {
-  font-size: .8rem;
-  color: var(--text-dim);
-}
+.w-city { font-size: .85rem; color: var(--text-dim); }
 
-/* Stats card */
+/* Stats */
 .w-stats { display: flex; flex-direction: column; gap: .35rem; }
 
-.stat {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-}
+.stat { display: flex; align-items: baseline; justify-content: space-between; }
 
 .stat-label {
-  font-size: .72rem;
+  font-size: .7rem;
   text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text-dim);
+  letter-spacing: .12em;
+  color: var(--primary);                    /* yellow heading */
 }
 
-.stat-val { font-size: 1rem; font-weight: 500; }
+.stat-val { font-size: 1.05rem; font-weight: 400; color: var(--text); }
 
-/* AQI card — colored accent bar driven by --aqi-color from JS */
-.aqi-card {
-  --aqi-color: var(--primary);
-  border-left: 4px solid var(--aqi-color);
-}
-
+/* AQI */
 .aqi-row { display: flex; align-items: baseline; gap: .4rem; }
 
 .aqi-value {
-  font-size: clamp(1.6rem, 4.5vh, 2.6rem);
-  font-weight: 600;
+  font-size: clamp(1.7rem, 4.2vh, 2.6rem);
+  font-weight: 300;
   line-height: 1;
-  color: var(--aqi-color);
+  color: var(--text);                       /* white */
 }
 
 .aqi-tag {
-  font-size: .68rem;
-  letter-spacing: .14em;
-  color: var(--text-dim);
+  font-size: .66rem;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  color: var(--primary);                    /* yellow heading */
 }
 
-.aqi-label {
-  font-size: .82rem;
-  color: var(--text);
-  margin-top: .1rem;
-}
+.aqi-label { font-size: .88rem; color: var(--text-dim); margin-top: .1rem; }
 
 /* ════ STAGE · slideshow ══════════════════════════════════════ */
 #stage {
   grid-area: stage;
   position: relative;
-  border: 1px solid var(--outline);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
   overflow: hidden;
-  background: #000;
+  background: #000;                         /* pure black, covers pattern */
   min-width: 0;
   min-height: 0;
 }
@@ -230,7 +217,7 @@ body {
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;          /* whole photo, never cropped */
+  object-fit: contain;                      /* whole photo, never cropped */
   opacity: 0;
   transition: opacity var(--fade-ms, 1500ms) ease;
   will-change: opacity;
@@ -238,7 +225,6 @@ body {
 
 .slide-layer.visible { opacity: 1; }
 
-/* No-photos card (centered in stage, shown only at zero photos) */
 #no-photos {
   position: absolute;
   inset: 0;
@@ -249,13 +235,13 @@ body {
 }
 
 .no-photos-card {
-  background: var(--surface-2);
+  background: #0a0a0a;
   text-align: center;
-  padding: 2rem 3rem;
+  padding: 1.8rem 2.8rem;
   line-height: 1.7;
 }
 
-.np-title { font-size: 1.5rem; font-weight: 500; margin-bottom: .6rem; }
+.np-title { font-size: 1.5rem; font-weight: 400; margin-bottom: .5rem; color: var(--text); }
 .np-sub   { font-size: 1rem; color: var(--text-dim); }
 .np-url   { font-family: monospace; font-size: 1.05rem; color: var(--primary); margin-top: .2rem; }
 
@@ -268,75 +254,59 @@ body {
   min-height: 0;
 }
 
-.rain-card {
-  flex: 1 1 auto;
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
+.rain-card { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; }
+.daily-card { flex: 0 0 auto; display: flex; flex-direction: column; }
 
-.daily-card {
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Rain strip */
+/* Rain strip — minimal white bars, height = probability */
 #rain-strip {
   flex: 1 1 auto;
   display: flex;
   align-items: flex-end;
-  gap: 3px;
+  gap: 4px;
   min-height: 0;
 }
 
 .rain-bar {
   flex: 1;
-  background: var(--primary);
-  border-radius: 3px 3px 0 0;
+  background: rgba(255, 255, 255, .5);
+  border-radius: 2px 2px 0 0;
   min-height: 2px;
-  opacity: .85;
   transition: height .4s ease;
 }
 
-/* Daily forecast row */
+/* Daily forecast */
 #daily-forecast {
   display: flex;
-  gap: clamp(.6rem, 1.4vw, 1.4rem);
+  gap: clamp(.7rem, 1.6vw, 1.7rem);
   align-items: center;
   flex: 1 1 auto;
 }
 
-.fc-day {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: .1rem;
-}
+.fc-day { display: flex; flex-direction: column; align-items: center; gap: .12rem; }
 
 .fc-label {
-  font-size: .62rem;
+  font-size: .66rem;
   text-transform: uppercase;
-  letter-spacing: .08em;
-  color: var(--text-dim);
+  letter-spacing: .1em;
+  color: var(--primary);                    /* yellow heading */
 }
 
-.fc-icon { width: clamp(24px, 3.5vh, 34px); height: clamp(24px, 3.5vh, 34px); }
+.fc-icon { width: clamp(28px, 4vh, 40px); height: clamp(28px, 4vh, 40px); opacity: .9; }
 
-.fc-temps { display: flex; gap: .3rem; font-size: .82rem; }
-.fc-max   { font-weight: 600; }
+.fc-temps { display: flex; gap: .35rem; font-size: 1rem; }
+.fc-max   { color: var(--text); }
 .fc-min   { color: var(--text-dim); }
-.fc-rain  { font-size: .6rem; color: var(--primary-dim); }
+.fc-rain  { font-size: .64rem; color: var(--text-dim); }
 
-/* Footer (stale + attribution) */
+/* Footer */
 #w-footer {
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
   align-items: flex-end;
-  font-size: .56rem;
-  padding-bottom: .15rem;
+  font-size: .58rem;
+  padding-bottom: .1rem;
   white-space: nowrap;
 }
 

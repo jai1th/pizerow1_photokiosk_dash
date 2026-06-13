@@ -1,7 +1,7 @@
 import logging
 from pathlib import Path
 
-from flask import Flask
+from flask import Flask, request
 from waitress import serve
 
 import config
@@ -10,12 +10,20 @@ from piframe.routes_pages import pages_bp
 from piframe.routes_api import api_bp
 from piframe import photos
 
+log = logging.getLogger(__name__)
+
 
 def create_app() -> Flask:
     _ensure_dirs()
     app = Flask(__name__, template_folder="templates", static_folder="static")
     app.register_blueprint(pages_bp)
     app.register_blueprint(api_bp)
+
+    @app.after_request
+    def _log_request(resp):
+        log.info("REQ %s %s -> %s", request.method, request.full_path, resp.status_code)
+        return resp
+
     return app
 
 
