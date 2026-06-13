@@ -4,17 +4,20 @@
 
 const MANIFEST_POLL_MS = 60 * 1000;
 const WEATHER_POLL_MS  = 15 * 60 * 1000;
-const CLOCK_TICK_MS    = 30 * 1000;
+const CLOCK_TICK_MS    = 15 * 1000;
 
 // Apply fade duration from injected config
 document.documentElement.style.setProperty('--fade-ms', FADE_MS + 'ms');
 
 const layerA     = document.getElementById('layer-a');
 const layerB     = document.getElementById('layer-b');
-const clockEl    = document.getElementById('clock');
 const noPhotos   = document.getElementById('no-photos');
 const uploadUrl  = document.getElementById('upload-url');
 const slideshow  = document.getElementById('slideshow');
+
+const clockLocal   = document.getElementById('clock-local');
+const clockPanama  = document.getElementById('clock-panama');
+const clockDetroit = document.getElementById('clock-detroit');
 
 let photos       = [];   // current shuffled rotation
 let idx          = 0;    // index of the photo currently visible
@@ -41,13 +44,20 @@ async function apiFetch(url) {
   } catch { return null; }
 }
 
-// ── Clock ──────────────────────────────────────────────────────────────────
+// ── Clocks (local + dual time zone) ─────────────────────────────────────────
+
+// Format the current moment as HH:MM (24 h) for an optional IANA time zone.
+function fmtZone(tz) {
+  return new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    ...(tz ? { timeZone: tz } : {})
+  }).format(new Date());
+}
 
 function tickClock() {
-  const n = new Date();
-  clockEl.textContent =
-    String(n.getHours()).padStart(2, '0') + ':' +
-    String(n.getMinutes()).padStart(2, '0');
+  clockLocal.textContent   = fmtZone();                    // device local
+  clockPanama.textContent  = fmtZone('America/Panama');
+  clockDetroit.textContent = fmtZone('America/Detroit');
 }
 
 tickClock();
@@ -185,29 +195,36 @@ function renderWeather(d) {
   const cur = d.current || {};
   const loc = d.location || {};
 
-  // Main block
+  // Main block (left sidebar)
   const iconEl = document.getElementById('w-icon');
-  if (cur.icon) { iconEl.src = '/static/icons/' + cur.icon + '.svg'; iconEl.alt = cur.condition || ''; }
+  if (cur.icon) {
+    iconEl.src = '/static/icons/' + cur.icon + '.svg';
+    iconEl.alt = cur.condition || '';
+    iconEl.hidden = false;
+  }
 
-  const t = cur.temp != null ? Math.round(cur.temp) + '°' : '—';
-  document.getElementById('w-temp').textContent = t;
+  document.getElementById('w-temp').textContent =
+    cur.temp != null ? Math.round(cur.temp) + '°' : '—';
   document.getElementById('w-condition').textContent = cur.condition || '';
   document.getElementById('w-city').textContent =
     [loc.city, loc.country].filter(Boolean).join(', ') +
     (loc.approximate ? ' (approx.)' : '');
 
-  // Chips
-  document.getElementById('chip-feels').textContent =
-    'Feels ' + (cur.feels_like != null ? Math.round(cur.feels_like) + '°' : '—');
-  document.getElementById('chip-humidity').textContent =
-    (cur.humidity != null ? cur.humidity + '%' : '—') + ' humidity';
-  document.getElementById('chip-wind').textContent =
-    (cur.wind_kmh != null ? Math.round(cur.wind_kmh) + ' km/h' : '—') + ' wind';
+  // Stats
+  document.getElementById('w-feels').textContent =
+    cur.feels_like != null ? Math.round(cur.feels_like) + '°' : '—';
+  document.getElementById('w-humidity').textContent =
+    cur.humidity != null ? cur.humidity + '%' : '—';
+  document.getElementById('w-wind').textContent =
+    cur.wind_kmh != null ? Math.round(cur.wind_kmh) + ' km/h' : '—';
 
-  const aqiChip = document.getElementById('chip-aqi');
-  aqiChip.textContent = 'AQI ' + (cur.aqi_us != null ? cur.aqi_us : '—') +
-    (cur.aqi_label ? ' · ' + cur.aqi_label : '');
-  if (cur.aqi_color) aqiChip.style.background = cur.aqi_color;
+  // AQI card (colored accent driven by --aqi-color)
+  document.getElementById('aqi-value').textContent =
+    cur.aqi_us != null ? cur.aqi_us : '—';
+  document.getElementById('aqi-label').textContent = cur.aqi_label || ' ';
+  if (cur.aqi_color) {
+    document.getElementById('aqi-card').style.setProperty('--aqi-color', cur.aqi_color);
+  }
 
   // Rain strip
   const strip = document.getElementById('rain-strip');

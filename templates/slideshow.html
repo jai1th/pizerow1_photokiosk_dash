@@ -4,62 +4,89 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PiFrame</title>
-  <link rel="stylesheet" href="/static/slideshow.css">
+  <link rel="stylesheet" href="/static/slideshow.css?v=2">
 </head>
 <body>
 
-  <!-- Two-layer crossfade slideshow -->
-  <div id="slideshow">
-    <img id="layer-a" class="slide-layer" alt="">
-    <img id="layer-b" class="slide-layer" alt="">
-  </div>
-
-  <!-- Weather panel — bottom-left -->
-  <aside id="weather-panel" aria-live="polite">
-    <div id="weather-main">
-      <img id="w-icon" src="" alt="" width="48" height="48">
-      <div>
-        <div id="w-temp"></div>
-        <div id="w-condition"></div>
-        <div id="w-city"></div>
+  <!-- ══ TOP BAR · times ══════════════════════════════════════════ -->
+  <header id="top-bar">
+    <div id="clock-local" class="clock-local">--:--</div>
+    <div class="zone-clocks">
+      <div class="tz-card">
+        <span class="tz-name">Panama</span>
+        <span class="tz-time" id="clock-panama">--:--</span>
+      </div>
+      <div class="tz-card">
+        <span class="tz-name">Detroit</span>
+        <span class="tz-time" id="clock-detroit">--:--</span>
       </div>
     </div>
+  </header>
 
-    <div id="w-chips">
-      <span class="chip" id="chip-feels"></span>
-      <span class="chip" id="chip-humidity"></span>
-      <span class="chip" id="chip-wind"></span>
-      <span class="chip chip-aqi" id="chip-aqi"></span>
+  <!-- ══ LEFT SIDEBAR · current weather ═══════════════════════════ -->
+  <aside id="side-bar" aria-live="polite">
+    <div class="card weather-now">
+      <img id="w-icon" class="w-icon" src="" alt="" width="64" height="64" hidden>
+      <div class="w-temp" id="w-temp">--°</div>
+      <div class="w-condition" id="w-condition"></div>
+      <div class="w-city" id="w-city"></div>
     </div>
 
-    <!-- Rain next 12 h — bars are divs, no chart lib -->
-    <div id="rain-strip" aria-hidden="true"></div>
+    <div class="card w-stats">
+      <div class="stat"><span class="stat-label">Feels</span><span class="stat-val" id="w-feels">--°</span></div>
+      <div class="stat"><span class="stat-label">Humidity</span><span class="stat-val" id="w-humidity">--%</span></div>
+      <div class="stat"><span class="stat-label">Wind</span><span class="stat-val" id="w-wind">-- km/h</span></div>
+    </div>
 
-    <!-- 3-day forecast -->
-    <div id="daily-forecast"></div>
-
-    <div id="w-footer">
-      <span id="w-stale" hidden>⚠ Stale</span>
-      <span id="w-credit">Weather by <a href="https://open-meteo.com" tabindex="-1">Open-Meteo.com</a></span>
+    <div class="card aqi-card" id="aqi-card">
+      <div class="aqi-row">
+        <span class="aqi-value" id="aqi-value">--</span>
+        <span class="aqi-tag">AQI</span>
+      </div>
+      <div class="aqi-label" id="aqi-label">&nbsp;</div>
     </div>
   </aside>
 
-  <!-- Clock — top-right -->
-  <div id="clock" aria-live="off"></div>
-
-  <!-- Zero-photos card -->
-  <div id="no-photos" hidden>
-    <div id="no-photos-card">
-      <p>No photos yet.</p>
-      <p>Add photos at<br><span id="upload-url"></span></p>
+  <!-- ══ STAGE · slideshow (16:9) ═════════════════════════════════ -->
+  <main id="stage">
+    <div id="slideshow">
+      <img id="layer-a" class="slide-layer" alt="">
+      <img id="layer-b" class="slide-layer" alt="">
     </div>
-  </div>
+
+    <!-- Shown only when there are zero photos -->
+    <div id="no-photos" hidden>
+      <div class="card no-photos-card">
+        <p class="np-title">No photos yet</p>
+        <p class="np-sub">Add photos at</p>
+        <p class="np-url" id="upload-url"></p>
+      </div>
+    </div>
+  </main>
+
+  <!-- ══ BOTTOM BAR · forecast ════════════════════════════════════ -->
+  <footer id="bottom-bar">
+    <div class="card rain-card">
+      <div class="card-title">Rain · next 12 h</div>
+      <div id="rain-strip" aria-hidden="true"></div>
+    </div>
+
+    <div class="card daily-card">
+      <div class="card-title">3-day</div>
+      <div id="daily-forecast"></div>
+    </div>
+
+    <div id="w-footer">
+      <span id="w-stale" hidden>⚠ Stale</span>
+      <span id="w-credit">Weather by <a href="https://open-meteo.com" tabindex="-1">Open-Meteo</a></span>
+    </div>
+  </footer>
 
   <script>
     /* Config injected from server — single source of truth */
     const SLIDE_SECONDS = {{ slide_seconds }};
     const FADE_MS       = {{ fade_ms }};
   </script>
-  <script src="/static/slideshow.js"></script>
+  <script src="/static/slideshow.js?v=2"></script>
 </body>
 </html>

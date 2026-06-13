@@ -1,28 +1,236 @@
+/* ════════════════════════════════════════════════════════════════
+   PiFrame slideshow — Material 3 "Batman" theme
+   Black frame · dark-grey cards · yellow accents · grey secondary
+   Layout: full-bleed frame around a 16:9 photo stage
+     ┌──────────── top bar (times) ────────────┐
+     │ side │                                   │
+     │ bar  │        16:9 photo stage           │
+     └────────── bottom bar (forecast) ─────────┘
+   On a 1920×1080 (16:9) screen: 24% sidebar + 12%/12% bars ⇒
+   stage is exactly 76%×76% = 16:9.
+   ════════════════════════════════════════════════════════════════ */
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Surfaces (Material 3 dark, true-black base) */
+  --bg:          #000000;
+  --surface:     #15151a;
+  --surface-2:   #1d1d24;
+  --outline:     rgba(255, 255, 255, .08);
+
+  /* Batman palette */
+  --primary:     #ffd23f;   /* yellow accent  */
+  --primary-dim: #b8973a;   /* muted gold     */
+
+  /* Text */
+  --text:        #f3f3f3;
+  --text-dim:    #9aa0a6;   /* grey secondary */
+  --text-faint:  #5f636a;
+
+  /* Geometry */
+  --radius:      18px;
+  --radius-sm:   12px;
+  --pad:         clamp(.6rem, 1.1vw, 1.1rem);
+  --gap:         clamp(.5rem, .9vw, 1rem);
+}
 
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
-  background: #000;
+  background: var(--bg);
+  color: var(--text);
   cursor: none;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  color: #fff;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "tnum" 1;          /* tabular figures */
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Slideshow layers ─────────────────────────────────────── */
-#slideshow {
-  position: fixed;
-  inset: 0;
-  background: #000;
+body {
+  display: grid;
+  grid-template-columns: 24% 1fr;
+  grid-template-rows: 12% 1fr 12%;
+  grid-template-areas:
+    "top    top"
+    "side   stage"
+    "bottom bottom";
+  gap: var(--gap);
+  padding: var(--gap);
 }
+
+/* ── Generic card ─────────────────────────────────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  padding: var(--pad);
+}
+
+.card-title {
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .14em;
+  color: var(--primary-dim);
+  margin-bottom: .4rem;
+}
+
+/* ════ TOP BAR · times ════════════════════════════════════════ */
+#top-bar {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap);
+  padding: 0 .4rem;
+}
+
+.clock-local {
+  font-size: clamp(2.4rem, 6vh, 4.5rem);
+  font-weight: 300;
+  letter-spacing: .04em;
+  line-height: 1;
+  color: var(--primary);
+}
+
+.zone-clocks {
+  display: flex;
+  gap: var(--gap);
+  height: 100%;
+  align-items: center;
+}
+
+.tz-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-end;
+  background: var(--surface);
+  border: 1px solid var(--outline);
+  border-radius: var(--radius-sm);
+  padding: .35rem .9rem;
+  min-width: clamp(7rem, 12vw, 11rem);
+}
+
+.tz-name {
+  font-size: .6rem;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  color: var(--text-dim);
+}
+
+.tz-time {
+  font-size: clamp(1.1rem, 3vh, 1.9rem);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+/* ════ LEFT SIDEBAR · current weather ═════════════════════════ */
+#side-bar {
+  grid-area: side;
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  min-height: 0;
+}
+
+.weather-now {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .15rem;
+  flex: 1 1 auto;
+  justify-content: center;
+}
+
+.w-icon {
+  width: clamp(48px, 7vh, 80px);
+  height: clamp(48px, 7vh, 80px);
+  margin-bottom: .3rem;
+}
+
+.w-temp {
+  font-size: clamp(2.6rem, 8vh, 5rem);
+  font-weight: 200;
+  line-height: .95;
+  color: var(--text);
+}
+
+.w-condition {
+  font-size: clamp(.9rem, 2.4vh, 1.25rem);
+  color: var(--text);
+  margin-top: .25rem;
+}
+
+.w-city {
+  font-size: .8rem;
+  color: var(--text-dim);
+}
+
+/* Stats card */
+.w-stats { display: flex; flex-direction: column; gap: .35rem; }
+
+.stat {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.stat-label {
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+}
+
+.stat-val { font-size: 1rem; font-weight: 500; }
+
+/* AQI card — colored accent bar driven by --aqi-color from JS */
+.aqi-card {
+  --aqi-color: var(--primary);
+  border-left: 4px solid var(--aqi-color);
+}
+
+.aqi-row { display: flex; align-items: baseline; gap: .4rem; }
+
+.aqi-value {
+  font-size: clamp(1.6rem, 4.5vh, 2.6rem);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--aqi-color);
+}
+
+.aqi-tag {
+  font-size: .68rem;
+  letter-spacing: .14em;
+  color: var(--text-dim);
+}
+
+.aqi-label {
+  font-size: .82rem;
+  color: var(--text);
+  margin-top: .1rem;
+}
+
+/* ════ STAGE · slideshow ══════════════════════════════════════ */
+#stage {
+  grid-area: stage;
+  position: relative;
+  border: 1px solid var(--outline);
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: #000;
+  min-width: 0;
+  min-height: 0;
+}
+
+#slideshow { position: absolute; inset: 0; background: #000; }
 
 .slide-layer {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-  object-fit: contain;
+  object-fit: contain;          /* whole photo, never cropped */
   opacity: 0;
   transition: opacity var(--fade-ms, 1500ms) ease;
   will-change: opacity;
@@ -30,154 +238,107 @@ html, body {
 
 .slide-layer.visible { opacity: 1; }
 
-/* ── Clock ────────────────────────────────────────────────── */
-#clock {
-  position: fixed;
-  top: 1.25rem;
-  right: 1.75rem;
-  z-index: 20;
-  font-size: clamp(1.4rem, 3vw, 2.2rem);
-  font-weight: 200;
-  letter-spacing: 0.06em;
-  text-shadow: 0 1px 6px rgba(0,0,0,.9), 0 0 20px rgba(0,0,0,.5);
-}
-
-/* ── Weather panel ────────────────────────────────────────── */
-#weather-panel {
-  position: fixed;
-  bottom: 1.5rem;
-  left: 1.5rem;
-  z-index: 20;
-  width: min(360px, calc(100vw - 3rem));
-  background: rgba(0,0,0,.62);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255,255,255,.08);
-  border-radius: 14px;
-  padding: 1rem 1.1rem .75rem;
-  transition: opacity .4s;
-}
-
-#weather-main {
-  display: flex;
-  align-items: center;
-  gap: .75rem;
-  margin-bottom: .55rem;
-}
-
-#w-icon { flex-shrink: 0; }
-
-#w-temp {
-  font-size: clamp(2rem, 5vw, 2.8rem);
-  font-weight: 200;
-  line-height: 1;
-}
-#w-condition { font-size: .82rem; opacity: .85; margin-top: .15rem; }
-#w-city      { font-size: .72rem; opacity: .55; margin-top: .1rem; }
-
-/* ── Chips ───────────────────────────────────────────────── */
-#w-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .3rem;
-  margin-bottom: .55rem;
-}
-
-.chip {
-  padding: .2rem .55rem;
-  border-radius: 999px;
-  background: rgba(255,255,255,.14);
-  font-size: .7rem;
-  white-space: nowrap;
-}
-
-.chip-aqi { font-weight: 600; }
-
-/* ── Rain strip ──────────────────────────────────────────── */
-#rain-strip {
-  display: flex;
-  align-items: flex-end;
-  height: 36px;
-  gap: 2px;
-  margin-bottom: .5rem;
-  padding-bottom: 2px;
-  border-bottom: 1px solid rgba(255,255,255,.12);
-}
-
-.rain-bar {
-  flex: 1;
-  background: rgba(100,181,246,.7);
-  border-radius: 2px 2px 0 0;
-  min-height: 2px;
-  transition: height .4s ease;
-}
-
-/* ── Daily forecast ──────────────────────────────────────── */
-#daily-forecast {
-  display: flex;
-  gap: .4rem;
-  margin-bottom: .45rem;
-}
-
-.fc-day {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  font-size: .68rem;
-  gap: .12rem;
-}
-
-.fc-label { opacity: .65; }
-
-.fc-icon {
-  width: 24px;
-  height: 24px;
-}
-
-.fc-temps {
-  display: flex;
-  gap: .25rem;
-}
-
-.fc-max { font-weight: 600; }
-.fc-min { opacity: .55; }
-.fc-rain { opacity: .6; font-size: .62rem; }
-
-/* ── Footer ──────────────────────────────────────────────── */
-#w-footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: .6rem;
-}
-
-#w-stale { color: #ffcc44; }
-
-#w-credit, #w-credit a { color: rgba(255,255,255,.35); text-decoration: none; }
-
-/* ── No-photos card ──────────────────────────────────────── */
+/* No-photos card (centered in stage, shown only at zero photos) */
 #no-photos {
-  position: fixed;
+  position: absolute;
   inset: 0;
-  z-index: 30;
+  z-index: 5;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-#no-photos-card {
-  background: rgba(255,255,255,.08);
-  border: 1px solid rgba(255,255,255,.15);
-  border-radius: 18px;
-  padding: 2.5rem 3.5rem;
+.no-photos-card {
+  background: var(--surface-2);
   text-align: center;
-  line-height: 2;
-  font-size: clamp(1rem, 2.5vw, 1.4rem);
+  padding: 2rem 3rem;
+  line-height: 1.7;
 }
 
-#upload-url {
-  font-family: monospace;
-  font-size: .9em;
-  color: #7ecce0;
+.np-title { font-size: 1.5rem; font-weight: 500; margin-bottom: .6rem; }
+.np-sub   { font-size: 1rem; color: var(--text-dim); }
+.np-url   { font-family: monospace; font-size: 1.05rem; color: var(--primary); margin-top: .2rem; }
+
+/* ════ BOTTOM BAR · forecast ══════════════════════════════════ */
+#bottom-bar {
+  grid-area: bottom;
+  display: flex;
+  align-items: stretch;
+  gap: var(--gap);
+  min-height: 0;
 }
+
+.rain-card {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.daily-card {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Rain strip */
+#rain-strip {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  min-height: 0;
+}
+
+.rain-bar {
+  flex: 1;
+  background: var(--primary);
+  border-radius: 3px 3px 0 0;
+  min-height: 2px;
+  opacity: .85;
+  transition: height .4s ease;
+}
+
+/* Daily forecast row */
+#daily-forecast {
+  display: flex;
+  gap: clamp(.6rem, 1.4vw, 1.4rem);
+  align-items: center;
+  flex: 1 1 auto;
+}
+
+.fc-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .1rem;
+}
+
+.fc-label {
+  font-size: .62rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-dim);
+}
+
+.fc-icon { width: clamp(24px, 3.5vh, 34px); height: clamp(24px, 3.5vh, 34px); }
+
+.fc-temps { display: flex; gap: .3rem; font-size: .82rem; }
+.fc-max   { font-weight: 600; }
+.fc-min   { color: var(--text-dim); }
+.fc-rain  { font-size: .6rem; color: var(--primary-dim); }
+
+/* Footer (stale + attribution) */
+#w-footer {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-end;
+  font-size: .56rem;
+  padding-bottom: .15rem;
+  white-space: nowrap;
+}
+
+#w-stale { color: var(--primary); font-weight: 600; }
+#w-credit, #w-credit a { color: var(--text-faint); text-decoration: none; }
