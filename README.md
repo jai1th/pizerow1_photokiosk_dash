@@ -114,16 +114,12 @@ aWIFI_KEY[0]=YourWiFiPassword
 aWIFI_KEYMGMT[0]=WPA-PSK
 ```
 
-#### `config.txt` — also on the boot partition
-
-See the next step.
-
 ---
 
 ### 3 — Set GPU memory
 
-Cog renders via DRM/KMS and needs the GPU memory split set to at least 64 MB.
-Open **`config.txt`** on the boot partition and add or replace the `gpu_mem` line:
+The X framebuffer driver needs the GPU memory split set to at least 64 MB.
+Open **`/boot/firmware/config.txt`** and add or replace the `gpu_mem` line:
 
 ```ini
 gpu_mem=64
@@ -312,7 +308,7 @@ sudo systemctl disable piframe-kiosk.service
 ### `gpu_mem`
 
 Chromium benefits from more GPU memory than Cog.  Set `gpu_mem=128` in
-`config.txt` for smooth rendering on the Zero 2 W (it has the same 512 MB RAM
+`/boot/firmware/config.txt` for smooth rendering on the Zero 2 W (it has the same 512 MB RAM
 but the quad-core handles the extra workload).
 
 ---
@@ -356,7 +352,7 @@ sudo systemctl daemon-reload && sudo systemctl restart piframe-kiosk
    If not: `sudo usermod -aG video,render dietpi` then **reboot** (group
    changes take effect on next login).
 2. Check DRM device exists: `ls /dev/dri/`.
-3. Check `gpu_mem` in `/boot/config.txt` is ≥ 64.
+3. Check `gpu_mem` in `/boot/firmware/config.txt` is ≥ 64.
 4. Read cog's output: `journalctl -u piframe-kiosk -b`.
 
 ### Weather panel shows "⚠ Stale"

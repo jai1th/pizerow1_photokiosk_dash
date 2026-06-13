@@ -28,21 +28,22 @@ info "Installing system packages..."
 apt-get install -y --no-install-recommends \
     curl \
     rsync \
-    libopenjp2-7 \
     python3-pip
 
-# Cog (WPE WebKit kiosk browser for DRM/KMS — primary Path A).
-# On some DietPi/Debian versions the package may be named differently; we
-# try the canonical name and fall back gracefully.
-if apt-get install -y --no-install-recommends cog 2>/dev/null; then
-    KIOSK_READY=1
-else
-    warn "'cog' not found in apt.  Installing surf + minimal X as fallback."
-    warn "See README § Troubleshooting for the surf kiosk service variant."
-    apt-get install -y --no-install-recommends \
-        surf xserver-xorg-core xinit x11-xserver-utils
-    KIOSK_READY=0
-fi
+# Kiosk browser: surf under a minimal X stack.
+# Debian's cog package ships only the fdo (Wayland) platform plugin — the DRM
+# plugin required by "cog -P drm" is absent on ARMv6 builds.  surf + fbdev X
+# works reliably on the Pi Zero W 1.
+#
+# To use cog instead (e.g. on a board with a DRM-capable cog build), install
+# it manually and change ExecStart in piframe-kiosk.service to:
+#   ExecStart=/usr/bin/cog -P drm http://127.0.0.1:5000/
+apt-get install -y --no-install-recommends \
+    xserver-xorg \
+    xserver-xorg-video-fbdev \
+    xserver-xorg-legacy \
+    xinit \
+    surf
 
 # ── 2. Python packages (piwheels pre-built wheels for ARMv6) ───────────────
 info "Installing Python packages..."
@@ -73,23 +74,26 @@ mkdir -p \
     "$INSTALL_DIR/data/cache"
 chown -R "${SERVICE_USER}:${SERVICE_USER}" "$INSTALL_DIR/data"
 
-# ── 4. DRM group memberships ───────────────────────────────────────────────
-info "Granting $SERVICE_USER DRM/KMS access (video + render groups)..."
-usermod -aG video,render "$SERVICE_USER" \
-    || warn "usermod failed — add $SERVICE_USER to 'video' and 'render' manually."
+# ── 4. Group memberships for X / framebuffer access ───────────────────────
+info "Adding $SERVICE_USER to video group (framebuffer / X access)..."
+usermod -aG video "$SERVICE_USER" \
+    || warn "usermod failed — add $SERVICE_USER to 'video' manually."
+
+# ── 4b. Allow the dietpi service user to start an X server ────────────────
+# xserver-xorg-legacy provides a setuid Xorg wrapper; Xwrapper.config lets
+# non-root users invoke it (required when starting X from a systemd service
+# rather than a PAM login session).
+info "Configuring X server permissions..."
+mkdir -p /etc/X11
+cat > /etc/X11/Xwrapper.config << 'EOF'
+allowed_users=anybody
+needs_root_rights=auto
+EOF
 
 # ── 5. Systemd units ───────────────────────────────────────────────────────
 info "Installing systemd units..."
 cp "$INSTALL_DIR/deploy/piframe.service"       /etc/systemd/system/piframe.service
 cp "$INSTALL_DIR/deploy/piframe-kiosk.service" /etc/systemd/system/piframe-kiosk.service
-
-# If cog is absent, patch the kiosk unit to use surf via startx.
-if [[ $KIOSK_READY -eq 0 ]]; then
-    warn "Patching piframe-kiosk.service to use surf (no cog available)."
-    sed -i \
-        's|ExecStart=/usr/bin/cog.*|ExecStart=/usr/bin/xinit /usr/bin/surf -F http://127.0.0.1:5000/ -- :0 vt1|' \
-        /etc/systemd/system/piframe-kiosk.service
-fi
 
 systemctl daemon-reload
 systemctl enable piframe.service piframe-kiosk.service
@@ -119,6 +123,3 @@ echo "    journalctl -u piframe        -f"
 echo "    journalctl -u piframe-kiosk  -f"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-if [[ $KIOSK_READY -eq 0 ]]; then
-    warn "cog was unavailable; surf fallback applied.  See README § Troubleshooting."
-fi

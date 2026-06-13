@@ -1,12 +1,9 @@
 import hashlib
 import json
-import queue
 import shutil
 import threading
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from PIL import Image
@@ -18,14 +15,13 @@ from PIL import Image
 
 @pytest.fixture(autouse=True)
 def tmp_dirs(tmp_path, monkeypatch):
-    originals = tmp_path / "originals"
-    display   = tmp_path / "display"
-    cache     = tmp_path / "cache"
-    for d in (originals, display, cache):
+    display = tmp_path / "display"
+    cache   = tmp_path / "cache"
+    for d in (display, cache):
         d.mkdir()
 
     import config
-    monkeypatch.setattr(config, "ORIGINALS_DIR",    originals)
+    monkeypatch.setattr(config, "ORIGINALS_DIR",    tmp_path / "originals")
     monkeypatch.setattr(config, "DISPLAY_DIR",      display)
     monkeypatch.setattr(config, "CACHE_DIR",        cache)
     monkeypatch.setattr(config, "PHOTOS_REGISTRY",  cache / "photos.json")
@@ -34,32 +30,7 @@ def tmp_dirs(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "DISPLAY_H",        240)
     monkeypatch.setattr(config, "MAX_UPLOAD_BYTES", 30 * 1024 * 1024)
 
-    # Ensure worker is running; drain any leftover jobs from a prior test
-    from piframe import photos
-    photos.start_ingest_worker()
-    _drain_queue(photos)
-
     yield tmp_path
-
-
-def _drain_queue(photos_module) -> None:
-    """Discard queued items left over from a prior test."""
-    while True:
-        try:
-            photos_module._ingest_queue.get_nowait()
-            photos_module._ingest_queue.task_done()
-        except queue.Empty:
-            break
-
-
-def _wait_for_display(content_hash: str, timeout: float = 5.0) -> bool:
-    import config
-    deadline = time.time() + timeout
-    while time.time() < deadline:
-        if (config.DISPLAY_DIR / f"{content_hash}.jpg").exists():
-            return True
-        time.sleep(0.05)
-    return False
 
 
 def _wait_for_registry(content_hash: str, timeout: float = 5.0) -> bool:
@@ -125,7 +96,7 @@ def test_validate_too_large(tmp_path, monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# ingest (async) + dedup
+# ingest (synchronous) + dedup
 # ---------------------------------------------------------------------------
 
 def test_ingest_creates_display_copy(tmp_dirs):
@@ -138,32 +109,28 @@ def test_ingest_creates_display_copy(tmp_dirs):
     with open(p, "rb") as f:
         ingest(content_hash, f, "source.jpg")
 
-    assert _wait_for_display(content_hash), "display copy never appeared"
-    assert _wait_for_registry(content_hash), "registry entry never appeared"
-
-    with Image.open(config.DISPLAY_DIR / f"{content_hash}.jpg") as img:
-        assert img.width <= config.DISPLAY_W
-        assert img.height <= config.DISPLAY_H
+    # Synchronous: display copy and registry entry exist immediately
+    assert (config.DISPLAY_DIR / f"{content_hash}.jpg").exists()
+    from piframe.photos import registry_has
+    assert registry_has(content_hash)
 
 
-def test_ingest_display_dimensions_scaled_down(tmp_dirs):
-    import config
-    from piframe.photos import ingest
-    p = tmp_dirs / "big.jpg"
-    _make_jpeg(p, width=4000, height=3000)
+def test_ingest_is_immediately_visible_in_manifest(tmp_dirs):
+    from piframe.photos import ingest, get_manifest
+    p = tmp_dirs / "instant.jpg"
+    _make_jpeg(p)
     content_hash = _hash_file(p)
 
     with open(p, "rb") as f:
-        ingest(content_hash, f, "big.jpg")
+        ingest(content_hash, f, "instant.jpg")
 
-    assert _wait_for_display(content_hash), "display copy never appeared"
-    with Image.open(config.DISPLAY_DIR / f"{content_hash}.jpg") as img:
-        assert img.width <= config.DISPLAY_W
-        assert img.height <= config.DISPLAY_H
+    manifest = get_manifest()
+    assert manifest["count"] == 1
+    assert f"{content_hash}.jpg" in manifest["photos"]
 
 
-def test_duplicate_detected_while_in_queue(tmp_dirs):
-    """is_known() returns True immediately after ingest() enqueues, before worker finishes."""
+def test_duplicate_detected_after_ingest(tmp_dirs):
+    """is_known() returns True after ingest() completes."""
     from piframe import photos
     p = tmp_dirs / "dup.jpg"
     _make_jpeg(p)
@@ -172,22 +139,23 @@ def test_duplicate_detected_while_in_queue(tmp_dirs):
     with open(p, "rb") as f:
         photos.ingest(content_hash, f, "dup.jpg")
 
-    # Must be detectable as known before the display copy exists
     assert photos.is_known(content_hash)
 
 
-def test_duplicate_detected_after_ingest_completes(tmp_dirs):
-    """is_known() stays True after the worker registers the hash."""
-    from piframe import photos
-    p = tmp_dirs / "dup2.jpg"
+def test_ingest_idempotent_same_hash(tmp_dirs):
+    """Calling ingest() twice with the same hash is safe and produces one entry."""
+    import config
+    from piframe.photos import ingest, get_manifest
+    p = tmp_dirs / "same.jpg"
     _make_jpeg(p)
     content_hash = _hash_file(p)
 
     with open(p, "rb") as f:
-        photos.ingest(content_hash, f, "dup2.jpg")
+        ingest(content_hash, f, "same.jpg")
+    with open(p, "rb") as f:
+        ingest(content_hash, f, "same.jpg")  # second call is a no-op
 
-    assert _wait_for_registry(content_hash)
-    assert photos.is_known(content_hash)
+    assert get_manifest()["count"] == 1
 
 
 def test_registry_survives_restart(tmp_dirs):
@@ -200,7 +168,6 @@ def test_registry_survives_restart(tmp_dirs):
     with open(p, "rb") as f:
         photos.ingest(content_hash, f, "persist.jpg")
 
-    assert _wait_for_registry(content_hash)
     reg = json.loads(config.PHOTOS_REGISTRY.read_text())
     assert content_hash in reg
     assert reg[content_hash]["original_name"] == "persist.jpg"
@@ -209,36 +176,6 @@ def test_registry_survives_restart(tmp_dirs):
 # ---------------------------------------------------------------------------
 # Manifest
 # ---------------------------------------------------------------------------
-
-def test_manifest_excludes_pending_photo(tmp_dirs):
-    """A photo that's enqueued but not yet scaled must not appear in the manifest."""
-    import config
-    from piframe import photos
-
-    # Block the worker so the job stays in-progress
-    blocked = threading.Event()
-    original = photos._ingest_one
-
-    def blocking_ingest_one(h, p):
-        blocked.wait(timeout=5)
-        return original(h, p)
-
-    photos._ingest_one = blocking_ingest_one
-    try:
-        p = tmp_dirs / "pending.jpg"
-        _make_jpeg(p)
-        content_hash = _hash_file(p)
-        with open(p, "rb") as f:
-            photos.ingest(content_hash, f, "pending.jpg")
-
-        # Give worker time to pick up and block
-        time.sleep(0.15)
-        manifest = photos.get_manifest()
-        assert manifest["count"] == 0
-    finally:
-        blocked.set()
-        photos._ingest_one = original
-
 
 def test_manifest_excludes_missing_display(tmp_dirs):
     import config
@@ -252,7 +189,6 @@ def test_manifest_excludes_missing_display(tmp_dirs):
 
 
 def test_manifest_includes_completed_photo(tmp_dirs):
-    import config
     from piframe import photos
     p = tmp_dirs / "real.jpg"
     _make_jpeg(p)
@@ -261,7 +197,6 @@ def test_manifest_includes_completed_photo(tmp_dirs):
     with open(p, "rb") as f:
         photos.ingest(content_hash, f, "real.jpg")
 
-    assert _wait_for_display(content_hash)
     manifest = photos.get_manifest()
     assert manifest["count"] == 1
     assert f"{content_hash}.jpg" in manifest["photos"]
@@ -281,7 +216,6 @@ def test_delete_removes_all_traces(tmp_dirs):
     with open(p, "rb") as f:
         photos.ingest(content_hash, f, "del.jpg")
 
-    assert _wait_for_display(content_hash)
     photos.delete_photo(content_hash)
 
     assert not (config.DISPLAY_DIR / f"{content_hash}.jpg").exists()
@@ -292,7 +226,8 @@ def test_delete_removes_all_traces(tmp_dirs):
 # Startup repair scan
 # ---------------------------------------------------------------------------
 
-def test_repair_ingest_orphaned_original(tmp_dirs):
+def test_repair_registers_orphaned_display(tmp_dirs):
+    """Repair scan registers a display copy that exists on disk but not in the registry."""
     import config
     from piframe import photos
 
@@ -300,72 +235,30 @@ def test_repair_ingest_orphaned_original(tmp_dirs):
     _make_jpeg(p)
     content_hash = _hash_file(p)
 
-    orig_dest = config.ORIGINALS_DIR / f"{content_hash}.jpg"
-    shutil.copy(p, orig_dest)
+    # Simulate: display copy exists but registry is empty
+    shutil.copy(p, config.DISPLAY_DIR / f"{content_hash}.jpg")
+    assert not photos.registry_has(content_hash)
 
     photos.start_repair_scan()
-    assert _wait_for_display(content_hash), "repair scan never produced display copy"
+    assert _wait_for_registry(content_hash), "repair scan never registered the display copy"
 
 
-# ---------------------------------------------------------------------------
-# Weather responds while ingest is running
-# ---------------------------------------------------------------------------
-
-def test_weather_available_during_ingest(tmp_dirs, monkeypatch):
-    """GET /api/weather must complete quickly while the ingest worker is blocked."""
+def test_repair_skips_already_registered(tmp_dirs):
+    """Repair scan does not clobber an existing registry entry."""
     import config
     from piframe import photos
-    from app import create_app
 
-    # Pre-load a fresh weather cache so /api/weather never touches the network
-    weather_payload = {
-        "location": {"city": "Test", "country": "TC", "approximate": False},
-        "current": {
-            "temp": 20.0, "feels_like": 19.0, "humidity": 60,
-            "condition": "Clear sky", "icon": "clear-day",
-            "wind_kmh": 5.0, "is_day": True, "precipitation_mm": 0.0,
-            "aqi_us": 30, "aqi_eu": 25, "aqi_label": "Good", "aqi_color": "#00e400",
-            "pm2_5": 5.0, "pm10": 8.0,
-        },
-        "hourly_next12": [], "daily": [],
-        "fetched_at": datetime.now(timezone.utc).isoformat(),
-        "stale": False,
-    }
-    config.WEATHER_CACHE.write_text(json.dumps(weather_payload))
-
-    # Patch _ingest_one to block until we signal it
-    ingest_started = threading.Event()
-    ingest_release = threading.Event()
-    original_ingest_one = photos._ingest_one
-
-    def blocking_ingest_one(content_hash, original_path):
-        ingest_started.set()
-        assert ingest_release.wait(timeout=10), "test never released ingest"
-        return original_ingest_one(content_hash, original_path)
-
-    monkeypatch.setattr(photos, "_ingest_one", blocking_ingest_one)
-
-    # Place an original and enqueue it directly (bypasses is_known check)
-    p = tmp_dirs / "slow.jpg"
+    p = tmp_dirs / "known.jpg"
     _make_jpeg(p)
     content_hash = _hash_file(p)
-    orig_dest = config.ORIGINALS_DIR / f"{content_hash}.jpg"
-    shutil.copy(p, orig_dest)
-    photos._ingest_queue.put((content_hash, orig_dest, "slow.jpg"))
 
-    # Wait for the worker to pick up the job and block inside _ingest_one
-    assert ingest_started.wait(timeout=5), "ingest worker never started the job"
+    with open(p, "rb") as f:
+        photos.ingest(content_hash, f, "known.jpg")
 
-    # Weather endpoint must return while the worker is blocked
-    app = create_app()
-    client = app.test_client()
-    t0 = time.time()
-    resp = client.get("/api/weather")
-    elapsed = time.time() - t0
+    original_entry = json.loads(config.PHOTOS_REGISTRY.read_text())[content_hash]
 
-    assert resp.status_code == 200
-    assert elapsed < 2.0, f"/api/weather took {elapsed:.3f}s while ingest was blocking"
+    photos.start_repair_scan()
+    time.sleep(0.2)  # let the thread run
 
-    # Unblock and let the job finish cleanly
-    ingest_release.set()
-    assert _wait_for_display(content_hash), "display copy never appeared after unblocking"
+    current_entry = json.loads(config.PHOTOS_REGISTRY.read_text())[content_hash]
+    assert current_entry["cached_at"] == original_entry["cached_at"]

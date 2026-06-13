@@ -1,5 +1,5 @@
 [Unit]
-Description=PiFrame kiosk browser (Cog/WPE WebKit via DRM/KMS)
+Description=PiFrame kiosk browser (surf/WebKit via X/fbdev)
 # Start after the backend unit has been activated; the ExecStartPre wait-loop
 # below ensures we don't try to open the browser until Flask is responding.
 After=piframe.service
@@ -7,9 +7,9 @@ Wants=piframe.service
 
 [Service]
 User=dietpi
-# Direct DRM/KMS access requires membership in the video and render groups.
-# install.sh adds dietpi to both; this line is belt-and-suspenders.
-SupplementaryGroups=video render
+# video group gives the X server (running setuid via xserver-xorg-legacy)
+# access to /dev/fb0 and input devices on the Pi's framebuffer.
+SupplementaryGroups=video
 
 # Poll /api/status until the backend answers (up to 120 s).
 # Tries every 2 s; exits 1 on timeout so systemd will restart and retry.
@@ -21,7 +21,7 @@ ExecStartPre=/bin/bash -c '\
   echo "piframe-kiosk: backend not ready after 120 s" >&2; \
   exit 1'
 
-ExecStart=/usr/bin/cog -P drm http://127.0.0.1:5000/
+ExecStart=/usr/bin/xinit /usr/bin/surf -F http://127.0.0.1:5000/ -- :0 vt1
 
 Restart=always
 RestartSec=3

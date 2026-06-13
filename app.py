@@ -28,7 +28,6 @@ if __name__ == "__main__":
     configure_logging()
     log = logging.getLogger(__name__)
     _ensure_dirs()
-    photos.start_ingest_worker()
     photos.start_repair_scan()
     app = create_app()
     log.info("PiFrame starting on port %d", config.PORT)

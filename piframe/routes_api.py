@@ -90,7 +90,7 @@ def _handle_single_upload(fileobj) -> dict:
             tmp_path.unlink(missing_ok=True)
             return {"original_name": original_name, "status": "error", "error": str(exc)}
 
-        # Save original and enqueue scaling — returns immediately
+        # Write display copy directly (pre-scaled by the client)
         with open(tmp_path, "rb") as src:
             photos.ingest(content_hash, src, original_name)
         tmp_path.unlink(missing_ok=True)

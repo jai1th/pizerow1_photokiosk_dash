@@ -1,18 +1,22 @@
 'use strict';
 
+// ── Constants ──────────────────────────────────────────────────────────────
+const MAX_W = 1920;
+const MAX_H = 1080;
+
 // ── State ──────────────────────────────────────────────────────────────────
-let queue    = [];   // [{file, itemEl}]
-let busy     = false;
+let queue = [];   // [{file, itemEl}]
+let busy  = false;
 
 // ── Elements ───────────────────────────────────────────────────────────────
-const dropZone    = document.getElementById('drop-zone');
-const fileInput   = document.getElementById('file-input');
-const queueSec    = document.getElementById('queue-section');
-const queueList   = document.getElementById('queue-list');
-const photoGrid   = document.getElementById('photo-grid');
-const emptyMsg    = document.getElementById('empty-msg');
-const countBadge  = document.getElementById('photo-count');
-const serverInfo  = document.getElementById('server-info');
+const dropZone   = document.getElementById('drop-zone');
+const fileInput  = document.getElementById('file-input');
+const queueSec   = document.getElementById('queue-section');
+const queueList  = document.getElementById('queue-list');
+const photoGrid  = document.getElementById('photo-grid');
+const emptyMsg   = document.getElementById('empty-msg');
+const countBadge = document.getElementById('photo-count');
+const serverInfo = document.getElementById('server-info');
 
 // ── Utility ────────────────────────────────────────────────────────────────
 function escHtml(s) {
@@ -22,6 +26,10 @@ function escHtml(s) {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+function fmtMB(bytes) { return (bytes / 1048576).toFixed(1) + ' MB'; }
+
+function toJpgName(name) { return name.replace(/\.[^.]+$/, '') + '.jpg'; }
 
 // ── Drag-and-drop ──────────────────────────────────────────────────────────
 dropZone.addEventListener('dragover', e => {
@@ -64,7 +72,8 @@ function buildQueueItem(name) {
   const li = document.createElement('li');
   li.className = 'queue-item';
   li.innerHTML =
-    '<span class="q-name">' + escHtml(name) + '</span>' +
+    '<div class="q-name"><span class="q-filename">' + escHtml(name) + '</span>' +
+    '<span class="q-size"></span></div>' +
     '<span class="q-status">waiting</span>' +
     '<div class="progress-track"><div class="progress-bar"></div></div>';
   queueList.appendChild(li);
@@ -81,17 +90,64 @@ async function drain() {
   drain();
 }
 
+// ── Canvas resize ──────────────────────────────────────────────────────────
+// Scales the image to fit within MAX_W × MAX_H (same aspect-ratio logic as
+// Pillow's thumbnail()) then re-encodes as JPEG at quality 0.85.
+function resizeToJpeg(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      if (w > MAX_W || h > MAX_H) {
+        const scale = Math.min(MAX_W / w, MAX_H / h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(
+        blob => blob ? resolve(blob) : reject(new Error('canvas.toBlob failed')),
+        'image/jpeg', 0.85
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('image decode failed'));
+    };
+    img.src = url;
+  });
+}
+
 // ── XHR upload ─────────────────────────────────────────────────────────────
-function upload(file, itemEl) {
-  return new Promise(resolve => {
-    const statusEl   = itemEl.querySelector('.q-status');
-    const progressEl = itemEl.querySelector('.progress-bar');
+async function upload(file, itemEl) {
+  const statusEl   = itemEl.querySelector('.q-status');
+  const progressEl = itemEl.querySelector('.progress-bar');
+  const sizeEl     = itemEl.querySelector('.q-size');
 
-    statusEl.textContent = 'uploading';
+  statusEl.textContent = 'resizing…';
 
-    const fd  = new FormData();
-    fd.append('file', file);
+  let blob;
+  try {
+    blob = await resizeToJpeg(file);
+  } catch (err) {
+    statusEl.textContent = 'error';
+    sizeEl.textContent   = err.message;
+    itemEl.classList.add('status-error');
+    return;
+  }
 
+  sizeEl.textContent   = fmtMB(file.size) + ' → ' + fmtMB(blob.size);
+  statusEl.textContent = 'uploading';
+
+  const fd = new FormData();
+  fd.append('file', blob, toJpgName(file.name));
+
+  await new Promise(resolve => {
     const xhr = new XMLHttpRequest();
 
     xhr.upload.addEventListener('progress', e => {
@@ -131,12 +187,13 @@ function upload(file, itemEl) {
   });
 }
 
-// ── Poll until scaled display copy appears ─────────────────────────────────
+// ── Poll until display copy appears in manifest ────────────────────────────
+// Ingest is now synchronous on the backend, so the photo should appear in
+// the manifest on the first poll after a brief delay.
 async function waitForPhoto(hash) {
-  const filename  = hash + '.jpg';
-  const maxTries  = 40;  // 40 × 3 s = 120 s max wait
-  for (let i = 0; i < maxTries; i++) {
-    await sleep(3000);
+  const filename = hash + '.jpg';
+  for (let i = 0; i < 5; i++) {
+    await sleep(1000);
     try {
       const r = await fetch('/api/photos');
       const d = await r.json();
@@ -151,7 +208,7 @@ async function waitForPhoto(hash) {
 // ── Photo grid ─────────────────────────────────────────────────────────────
 function updateEmptyState() {
   const count = photoGrid.childElementCount;
-  emptyMsg.hidden     = count > 0;
+  emptyMsg.hidden        = count > 0;
   countBadge.textContent = count > 0 ? count : '';
 }
 
@@ -163,16 +220,16 @@ function addThumbnail(filename) {
   div.className        = 'thumb-item';
   div.dataset.filename = filename;
 
-  const img  = document.createElement('img');
-  img.src    = '/photos/' + filename;
-  img.alt    = '';
+  const img   = document.createElement('img');
+  img.src     = '/photos/' + filename;
+  img.alt     = '';
   img.loading = 'lazy';
 
-  const btn  = document.createElement('button');
-  btn.className       = 'btn-delete';
-  btn.type            = 'button';
+  const btn = document.createElement('button');
+  btn.className     = 'btn-delete';
+  btn.type          = 'button';
   btn.setAttribute('aria-label', 'Delete photo');
-  btn.textContent     = '✕';
+  btn.textContent   = '✕';
   btn.addEventListener('click', () => confirmDelete(hash, div));
 
   div.appendChild(img);
