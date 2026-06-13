@@ -4,111 +4,152 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>PiFrame</title>
-  <!-- CSS inlined (not <link>) — ARMv6 WebKit deadlocks on subresource loads -->
-  <style>{{ inline_css | safe }}</style>
+  <!-- All CSS, fonts, and JS inlined — ARMv6 WebKit deadlocks on subresource loads -->
+  <style>{{ font_face_css | safe }}{{ inline_css | safe }}</style>
 </head>
 <body>
+<div id="piframe-stage">
+  <div class="kiosk d4">
 
-  <!-- ══ TOP BAR · times ══════════════════════════════════════════ -->
-  <header id="top-bar">
-    <div id="clock-local" class="clock-local">--:--</div>
-    <div class="zone-clocks">
-      <div class="tz-card">
-        <span class="tz-name">Panama</span>
-        <span class="tz-time" id="clock-panama">--:--</span>
+    <!-- ══ LEFT RAIL ════════════════════════════════════════════════ -->
+    <div class="d4-rail">
+
+      <!-- Clock card -->
+      <div class="d4-card d4-clock">
+        <div class="d4-time">
+          <span class="mono" data-clock="HM" data-tz="{{ tz_main }}">--:--</span>
+          <span class="d4-ap mono" data-clock="AP" data-tz="{{ tz_main }}"></span>
+        </div>
+        <div class="d4-date" data-date data-tz="{{ tz_main }}"></div>
+        <div class="d4-zones">
+          {% for z in tz_zones %}
+          <div class="d4-zchip">
+            <span class="d4-zlabel">{{ z.label }}</span>
+            <span class="mono d4-ztime" data-clock="FULL" data-tz="{{ z.tz }}">--:--</span>
+          </div>
+          {% endfor %}
+        </div>
       </div>
-      <div class="tz-card">
-        <span class="tz-name">Detroit</span>
-        <span class="tz-time" id="clock-detroit">--:--</span>
+
+      <!-- Events card -->
+      <div class="d4-card d4-events">
+        <div class="d4-evhead">
+          Today<span class="d4-evcount">{{ events | length }}</span>
+        </div>
+        <div class="d4-evlist">
+          {% set colors = ['#6fd08c','#5aa9f0','#ff6b6b','#6fd08c','#5aa9f0'] %}
+          {% for e in events %}
+          <div class="d4-ev" data-mins="{{ e.mins }}" style="--ec:{{ colors[loop.index0 % colors|length] }}">
+            <span class="d4-evdot"></span>
+            <span class="d4-evtime mono">{{ e.time }}</span>
+            <span class="serif d4-evtitle">{{ e.title }}</span>
+            <span class="d4-evnow" style="display:none">Next</span>
+          </div>
+          {% else %}
+          <div class="d4-noev">No events today</div>
+          {% endfor %}
+        </div>
       </div>
-    </div>
-  </header>
 
-  <!-- ══ LEFT SIDEBAR · current weather (server-rendered) ═════════ -->
-  <aside id="side-bar">
-    <div class="card weather-now">
-      <span class="w-icon">{{ icons.get(w.icon, '') | safe }}</span>
-      <div class="w-temp">{{ w.temp }}&deg;</div>
-      <div class="w-condition">{{ w.condition }}</div>
-      <div class="w-city">{{ w.city }}</div>
     </div>
 
-    <div class="card w-stats">
-      <div class="stat"><span class="stat-label">Feels</span><span class="stat-val">{{ w.feels }}&deg;</span></div>
-      <div class="stat"><span class="stat-label">Humidity</span><span class="stat-val">{{ w.humidity }}%</span></div>
-      <div class="stat"><span class="stat-label">Wind</span><span class="stat-val">{{ w.wind }} km/h</span></div>
-    </div>
-
-    <div class="card aqi-card" style="--aqi-color: {{ w.aqi_color }}">
-      <div class="aqi-row">
-        <span class="aqi-value">{{ w.aqi }}</span>
-        <span class="aqi-tag">AQI</span>
-      </div>
-      <div class="aqi-label">{{ w.aqi_label }}</div>
-    </div>
-  </aside>
-
-  <!-- ══ STAGE · slideshow (server-rendered <img>, opacity crossfade) ═ -->
-  <main id="stage">
-    <div id="slideshow">
-      {% for src in photos %}
-      <img class="slide-layer{% if loop.first %} visible{% endif %}" src="{{ src }}" alt="">
-      {% endfor %}
-    </div>
-
-    {% if photo_count == 0 %}
-    <div id="no-photos">
-      <div class="card no-photos-card">
-        <p class="np-title">No photos yet</p>
-        <p class="np-sub">Add photos at</p>
-        <p class="np-url">http://{{ pi_ip }}:5000/upload</p>
-      </div>
-    </div>
-    {% endif %}
-  </main>
-
-  <!-- ══ BOTTOM BAR · forecast (server-rendered) ══════════════════ -->
-  <footer id="bottom-bar">
-    <div class="card rain-card">
-      <div class="card-title">Rain &middot; next 12 h</div>
-      <div id="rain-strip">
-        {% for p in w.hourly %}
-        <div class="rain-bar" style="height: {{ p }}%"></div>
+    <!-- ══ STAGE · slideshow ═══════════════════════════════════════ -->
+    <div class="d4-stage">
+      <div id="slideshow">
+        {% for src in photos %}
+        <img class="slide-layer{% if loop.first %} visible{% endif %}" src="{{ src }}" alt="">
         {% endfor %}
       </div>
+
+      {% if photo_count == 0 %}
+      <div id="no-photos">
+        <div class="no-photos-card">
+          <p class="np-title">No photos yet</p>
+          <p class="np-sub">Add photos at</p>
+          <p class="np-url">http://{{ pi_ip }}:5000/upload</p>
+        </div>
+      </div>
+      {% endif %}
     </div>
 
-    <div class="card daily-card">
-      <div class="card-title">3-day</div>
-      <div id="daily-forecast">
+    <!-- ══ BOTTOM BAR · weather ════════════════════════════════════ -->
+    <div class="d4-bottom d4-card">
+
+      <!-- Current weather -->
+      <div class="d4-now">
+        <span class="d4-wicon">{{ icons.get(w.icon, '') | safe }}</span>
+        <div>
+          <div class="mono d4-temp">{{ w.temp }}<span class="d4-deg">{{ w.units }}</span></div>
+          <div class="d4-cond">{{ w.condition }} &middot; {{ w.city }}</div>
+        </div>
+      </div>
+
+      <!-- Chips: Feels / Humidity / Wind / AQI -->
+      <div class="d4-chips">
+        <div class="d4-chip" style="--cc:#ff6b6b">
+          <span class="d4-clabel"><span class="d4-cdot"></span>Feels</span>
+          <span class="mono d4-cval">{{ w.feels }}{{ w.units }}</span>
+        </div>
+        <div class="d4-chip" style="--cc:#5aa9f0">
+          <span class="d4-clabel"><span class="d4-cdot"></span>Humidity</span>
+          <span class="mono d4-cval">{{ w.humidity }}%</span>
+        </div>
+        <div class="d4-chip" style="--cc:#6fd08c">
+          <span class="d4-clabel"><span class="d4-cdot"></span>Wind</span>
+          <span class="mono d4-cval">{{ w.wind }} km/h</span>
+        </div>
+        <div class="d4-chip" style="--cc:#6fd08c">
+          <span class="d4-clabel"><span class="d4-cdot"></span>AQI</span>
+          <span class="mono d4-cval">{{ w.aqi }} <em class="d4-cband">{{ w.aqi_label }}</em></span>
+        </div>
+      </div>
+
+      <!-- Rain · next 12h -->
+      <div class="d4-rainwrap">
+        <div class="d4-rlabel">Rain &middot; next 12 h</div>
+        <div class="d4-rain">
+          {% for p in w.hourly %}
+          <span class="d4-rbar" style="height:{{ [p, 6] | max }}%"></span>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- 3-day forecast -->
+      <div class="d4-daily">
         {% for d in w.daily %}
-        <div class="fc-day">
-          <div class="fc-label">{{ d.label }}</div>
-          <span class="fc-icon">{{ icons.get(d.icon, '') | safe }}</span>
-          <div class="fc-temps"><span class="fc-max">{{ d.tmax }}&deg;</span><span class="fc-min">{{ d.tmin }}&deg;</span></div>
-          <div class="fc-rain">{{ d.rain }}%</div>
+        <div class="d4-day">
+          <span class="d4-dlabel">{{ d.label }}</span>
+          <span class="d4-dicon">{{ icons.get(d.icon, '') | safe }}</span>
+          <span class="mono d4-dtemps"><em>{{ d.hi }}{{ w.units }}</em> {{ d.lo }}{{ w.units }}</span>
         </div>
         {% endfor %}
       </div>
-    </div>
 
-    <div id="w-footer">
-      {% if w.stale %}<span id="w-stale">&#9888; Stale</span>{% endif %}
-      <span id="w-credit">Weather by <a href="https://open-meteo.com" tabindex="-1">Open-Meteo</a></span>
-    </div>
-  </footer>
+      <!-- Status bubble -->
+      <div class="d4-status">
+        <span class="d4-statusdot {{ status.level }}"></span>
+        <div>
+          <div class="d4-statustitle">{{ status.title }}</div>
+          <div class="d4-statussub">{{ status.sub }}</div>
+        </div>
+      </div>
 
-  <script>
-    /* Config injected from server — single source of truth.
-       NOTE: this page uses NO fetch()/XHR/dynamic img.src — that path
-       deadlocks the WTF lock in this ARMv6 WebKit build. All data is
-       server-rendered above; updates happen via full-page reload. */
-    const SLIDE_SECONDS = {{ slide_seconds }};
-    const FADE_MS       = {{ fade_ms }};
-    const NEXT_OFFSET   = {{ next_offset }};
-    const PHOTO_COUNT   = {{ photo_count }};
-  </script>
-  <!-- JS inlined (not src=) — ARMv6 WebKit deadlocks on subresource loads -->
-  <script>{{ inline_js | safe }}</script>
+    </div><!-- /.d4-bottom -->
+
+  </div><!-- /.kiosk.d4 -->
+</div><!-- /#piframe-stage -->
+
+<!-- Open-Meteo attribution -->
+<a id="w-credit" href="https://open-meteo.com" tabindex="-1">Weather by Open-Meteo</a>
+
+<script>
+  const SLIDE_SECONDS = {{ slide_seconds }};
+  const FADE_MS       = {{ fade_ms }};
+  const NEXT_OFFSET   = {{ next_offset }};
+  const PHOTO_COUNT   = {{ photo_count }};
+  const TZ_MAIN       = {{ tz_main | tojson }};
+  const TZ_ZONES      = {{ tz_zones | tojson }};
+</script>
+<script>{{ inline_js | safe }}</script>
 </body>
 </html>

@@ -39,3 +39,22 @@ FALLBACK_LON = float(os.getenv("PIFRAME_FALLBACK_LON", 0.0))
 # Upload
 MAX_UPLOAD_BYTES = 30 * 1024 * 1024  # 30 MB
 ALLOWED_MIMETYPES = {"image/jpeg", "image/png", "image/webp"}
+
+# Timezones — main is the Pi's local TZ ("" = JS browser local); extras are
+# shown as chips in the clock rail.  Format: "Label:IANA/Zone" comma-separated.
+TZ_MAIN = os.getenv("PIFRAME_TZ_MAIN", "")
+TZ_ZONES_RAW = os.getenv("PIFRAME_TZ_ZONES", "Panama:America/Panama,Detroit:America/Detroit")
+TZ_ZONES = [
+    {"label": p.split(":")[0], "tz": p.split(":", 1)[1]}
+    for p in TZ_ZONES_RAW.split(",") if ":" in p
+]
+
+# Calendar — optional .ics URL (e.g. Google Calendar secret iCal address).
+# Leave empty to show no events.
+CALENDAR_ICS_URL = os.getenv("PIFRAME_CALENDAR_ICS_URL", "")
+CALENDAR_CACHE = CACHE_DIR / "calendar.json"
+CALENDAR_REFRESH_SECS = 15 * 60
+
+# UI — backdrop-filter (frosted glass blur) is GPU-heavy on ARMv6/compositing-
+# disabled WebKit. Set PIFRAME_BACKDROP_FILTER=1 on a faster board (Zero 2 W).
+BACKDROP_FILTER = os.getenv("PIFRAME_BACKDROP_FILTER", "0") == "1"
