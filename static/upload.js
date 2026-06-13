@@ -90,26 +90,114 @@ async function drain() {
   drain();
 }
 
+// ── EXIF orientation ───────────────────────────────────────────────────────
+
+// Read the first 64 KB of the file and return the EXIF orientation tag value
+// (1–8), or 1 if absent / unreadable.
+async function readFileExifOrientation(file) {
+  try {
+    return parseExifOrientation(await file.slice(0, 65536).arrayBuffer());
+  } catch (_) {
+    return 1;
+  }
+}
+
+// Walk JPEG APP markers looking for the Orientation tag (0x0112) in IFD0.
+function parseExifOrientation(buffer) {
+  const v = new DataView(buffer);
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return 1; // not JPEG
+  let off = 2;
+  while (off + 2 <= v.byteLength) {
+    const marker = v.getUint16(off);
+    off += 2;
+    if (marker === 0xFFD9 || marker === 0xFFDA) break; // EOI / SOS
+    if ((marker & 0xFF00) !== 0xFF00) break;
+    if (off + 2 > v.byteLength) break;
+    const segLen = v.getUint16(off); // includes these 2 bytes
+    if (segLen < 2 || off + segLen > v.byteLength) break;
+    if (marker === 0xFFE1 && segLen >= 8 &&
+        v.getUint8(off+2) === 0x45 && v.getUint8(off+3) === 0x78 && // Ex
+        v.getUint8(off+4) === 0x69 && v.getUint8(off+5) === 0x66 && // if
+        v.getUint8(off+6) === 0x00 && v.getUint8(off+7) === 0x00) { // \0\0
+      const tiff = off + 8;
+      if (tiff + 8 > v.byteLength) break;
+      const le  = v.getUint16(tiff) === 0x4949;        // 'II' = little-endian
+      if (v.getUint16(tiff + 2, le) !== 42) break;     // TIFF magic
+      const ifd0 = tiff + v.getUint32(tiff + 4, le);
+      if (ifd0 + 2 > v.byteLength) break;
+      const n = v.getUint16(ifd0, le);
+      for (let i = 0; i < n; i++) {
+        const e = ifd0 + 2 + i * 12;
+        if (e + 12 > v.byteLength) break;
+        if (v.getUint16(e, le) === 0x0112)              // Orientation tag
+          return v.getUint16(e + 8, le);
+      }
+    }
+    off += segLen;
+  }
+  return 1;
+}
+
+// Set the canvas 2-D transform so that ctx.drawImage(img, 0, 0, drawW, drawH)
+// produces a correctly oriented output.  dw/dh are the canvas dimensions
+// (already axis-swapped for transposed orientations 5–8).
+//
+// Derivation: for each orientation the matrix maps drawing coordinates
+// (proportional to stored pixel position) to canvas pixel coordinates.
+function applyExifTransform(ctx, orientation, dw, dh) {
+  switch (orientation) {
+    case 2: ctx.transform(-1,  0,  0,  1, dw,  0); break; // flip H
+    case 3: ctx.transform(-1,  0,  0, -1, dw, dh); break; // rotate 180°
+    case 4: ctx.transform( 1,  0,  0, -1,  0, dh); break; // flip V
+    case 5: ctx.transform( 0,  1,  1,  0,  0,  0); break; // transpose
+    case 6: ctx.transform( 0,  1, -1,  0, dw,  0); break; // rotate 90° CW
+    case 7: ctx.transform( 0, -1, -1,  0, dw, dh); break; // transverse
+    case 8: ctx.transform( 0, -1,  1,  0,  0, dh); break; // rotate 90° CCW
+    // case 1: identity — no transform needed
+  }
+}
+
 // ── Canvas resize ──────────────────────────────────────────────────────────
-// Scales the image to fit within MAX_W × MAX_H (same aspect-ratio logic as
-// Pillow's thumbnail()) then re-encodes as JPEG at quality 0.85.
-function resizeToJpeg(file) {
+// Reads EXIF orientation, disables browser auto-correction so we get raw
+// stored pixels, scales to fit MAX_W × MAX_H (Pillow thumbnail() logic),
+// applies the orientation transform, and re-encodes as JPEG at quality 0.85.
+async function resizeToJpeg(file) {
+  const orientation = await readFileExifOrientation(file);
+
   return new Promise((resolve, reject) => {
     const img = new Image();
+    // Disable the browser's automatic EXIF orientation so naturalWidth/Height
+    // reflect the stored (pre-rotation) dimensions and drawImage gives raw
+    // pixels — we apply the correct transform ourselves via applyExifTransform.
+    img.style.imageOrientation = 'none';
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      let w = img.naturalWidth;
-      let h = img.naturalHeight;
-      if (w > MAX_W || h > MAX_H) {
-        const scale = Math.min(MAX_W / w, MAX_H / h);
-        w = Math.round(w * scale);
-        h = Math.round(h * scale);
+      const sw = img.naturalWidth;   // stored width  (pre-rotation)
+      const sh = img.naturalHeight;  // stored height (pre-rotation)
+
+      // Orientations 5–8 swap axes; compute the logical (display) dimensions.
+      const transposed = orientation >= 5 && orientation <= 8;
+      let dw = transposed ? sh : sw;
+      let dh = transposed ? sw : sh;
+
+      if (dw > MAX_W || dh > MAX_H) {
+        const scale = Math.min(MAX_W / dw, MAX_H / dh);
+        dw = Math.round(dw * scale);
+        dh = Math.round(dh * scale);
       }
+
       const canvas = document.createElement('canvas');
-      canvas.width  = w;
-      canvas.height = h;
-      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.width  = dw;
+      canvas.height = dh;
+      const ctx = canvas.getContext('2d');
+
+      applyExifTransform(ctx, orientation, dw, dh);
+
+      // For transposed orientations the draw dimensions are swapped relative
+      // to the canvas dimensions (the transform maps stored x↔y axes).
+      ctx.drawImage(img, 0, 0, transposed ? dh : dw, transposed ? dw : dh);
+
       canvas.toBlob(
         blob => blob ? resolve(blob) : reject(new Error('canvas.toBlob failed')),
         'image/jpeg', 0.85
