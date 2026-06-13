@@ -1,0 +1,183 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: #000;
+  cursor: none;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Slideshow layers ─────────────────────────────────────── */
+#slideshow {
+  position: fixed;
+  inset: 0;
+  background: #000;
+}
+
+.slide-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  opacity: 0;
+  transition: opacity var(--fade-ms, 1500ms) ease;
+  will-change: opacity;
+}
+
+.slide-layer.visible { opacity: 1; }
+
+/* ── Clock ────────────────────────────────────────────────── */
+#clock {
+  position: fixed;
+  top: 1.25rem;
+  right: 1.75rem;
+  z-index: 20;
+  font-size: clamp(1.4rem, 3vw, 2.2rem);
+  font-weight: 200;
+  letter-spacing: 0.06em;
+  text-shadow: 0 1px 6px rgba(0,0,0,.9), 0 0 20px rgba(0,0,0,.5);
+}
+
+/* ── Weather panel ────────────────────────────────────────── */
+#weather-panel {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 1.5rem;
+  z-index: 20;
+  width: min(360px, calc(100vw - 3rem));
+  background: rgba(0,0,0,.62);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 1rem 1.1rem .75rem;
+  transition: opacity .4s;
+}
+
+#weather-main {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: .55rem;
+}
+
+#w-icon { flex-shrink: 0; }
+
+#w-temp {
+  font-size: clamp(2rem, 5vw, 2.8rem);
+  font-weight: 200;
+  line-height: 1;
+}
+#w-condition { font-size: .82rem; opacity: .85; margin-top: .15rem; }
+#w-city      { font-size: .72rem; opacity: .55; margin-top: .1rem; }
+
+/* ── Chips ───────────────────────────────────────────────── */
+#w-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .3rem;
+  margin-bottom: .55rem;
+}
+
+.chip {
+  padding: .2rem .55rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.14);
+  font-size: .7rem;
+  white-space: nowrap;
+}
+
+.chip-aqi { font-weight: 600; }
+
+/* ── Rain strip ──────────────────────────────────────────── */
+#rain-strip {
+  display: flex;
+  align-items: flex-end;
+  height: 36px;
+  gap: 2px;
+  margin-bottom: .5rem;
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(255,255,255,.12);
+}
+
+.rain-bar {
+  flex: 1;
+  background: rgba(100,181,246,.7);
+  border-radius: 2px 2px 0 0;
+  min-height: 2px;
+  transition: height .4s ease;
+}
+
+/* ── Daily forecast ──────────────────────────────────────── */
+#daily-forecast {
+  display: flex;
+  gap: .4rem;
+  margin-bottom: .45rem;
+}
+
+.fc-day {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: .68rem;
+  gap: .12rem;
+}
+
+.fc-label { opacity: .65; }
+
+.fc-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.fc-temps {
+  display: flex;
+  gap: .25rem;
+}
+
+.fc-max { font-weight: 600; }
+.fc-min { opacity: .55; }
+.fc-rain { opacity: .6; font-size: .62rem; }
+
+/* ── Footer ──────────────────────────────────────────────── */
+#w-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .6rem;
+}
+
+#w-stale { color: #ffcc44; }
+
+#w-credit, #w-credit a { color: rgba(255,255,255,.35); text-decoration: none; }
+
+/* ── No-photos card ──────────────────────────────────────── */
+#no-photos {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#no-photos-card {
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 18px;
+  padding: 2.5rem 3.5rem;
+  text-align: center;
+  line-height: 2;
+  font-size: clamp(1rem, 2.5vw, 1.4rem);
+}
+
+#upload-url {
+  font-family: monospace;
+  font-size: .9em;
+  color: #7ecce0;
+}

@@ -1,0 +1,19 @@
+[Unit]
+Description=PiFrame backend (Flask/waitress)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=dietpi
+WorkingDirectory=/opt/piframe
+ExecStart=/usr/bin/python3 /opt/piframe/app.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+# Give the ingest worker and weather cache time to settle before systemd
+# considers the unit "active"
+TimeoutStartSec=30
+
+[Install]
+WantedBy=multi-user.target

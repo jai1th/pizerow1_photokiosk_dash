@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PiFrame</title>
+  <link rel="stylesheet" href="/static/slideshow.css">
+</head>
+<body>
+
+  <!-- Two-layer crossfade slideshow -->
+  <div id="slideshow">
+    <img id="layer-a" class="slide-layer" alt="">
+    <img id="layer-b" class="slide-layer" alt="">
+  </div>
+
+  <!-- Weather panel — bottom-left -->
+  <aside id="weather-panel" aria-live="polite">
+    <div id="weather-main">
+      <img id="w-icon" src="" alt="" width="48" height="48">
+      <div>
+        <div id="w-temp"></div>
+        <div id="w-condition"></div>
+        <div id="w-city"></div>
+      </div>
+    </div>
+
+    <div id="w-chips">
+      <span class="chip" id="chip-feels"></span>
+      <span class="chip" id="chip-humidity"></span>
+      <span class="chip" id="chip-wind"></span>
+      <span class="chip chip-aqi" id="chip-aqi"></span>
+    </div>
+
+    <!-- Rain next 12 h — bars are divs, no chart lib -->
+    <div id="rain-strip" aria-hidden="true"></div>
+
+    <!-- 3-day forecast -->
+    <div id="daily-forecast"></div>
+
+    <div id="w-footer">
+      <span id="w-stale" hidden>⚠ Stale</span>
+      <span id="w-credit">Weather by <a href="https://open-meteo.com" tabindex="-1">Open-Meteo.com</a></span>
+    </div>
+  </aside>
+
+  <!-- Clock — top-right -->
+  <div id="clock" aria-live="off"></div>
+
+  <!-- Zero-photos card -->
+  <div id="no-photos" hidden>
+    <div id="no-photos-card">
+      <p>No photos yet.</p>
+      <p>Add photos at<br><span id="upload-url"></span></p>
+    </div>
+  </div>
+
+  <script>
+    /* Config injected from server — single source of truth */
+    const SLIDE_SECONDS = {{ slide_seconds }};
+    const FADE_MS       = {{ fade_ms }};
+  </script>
+  <script src="/static/slideshow.js"></script>
+</body>
+</html>

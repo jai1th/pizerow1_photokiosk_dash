@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- small sun top-right -->
+  <circle cx="36" cy="12" r="6" fill="#FFD600"/>
+  <g stroke="#FFD600" stroke-width="2" stroke-linecap="round">
+    <line x1="36" y1="4"  x2="36" y2="7"/>
+    <line x1="36" y1="17" x2="36" y2="20"/>
+    <line x1="28" y1="12" x2="31" y2="12"/>
+    <line x1="41" y1="12" x2="44" y2="12"/>
+    <line x1="30.3" y1="6.3"  x2="32.5" y2="8.5"/>
+    <line x1="39.5" y1="15.5" x2="41.7" y2="17.7"/>
+    <line x1="41.7" y1="6.3"  x2="39.5" y2="8.5"/>
+    <line x1="32.5" y1="15.5" x2="30.3" y2="17.7"/>
+  </g>
+  <!-- cloud -->
+  <circle cx="12" cy="26" r="8"  fill="#607D8B"/>
+  <circle cx="22" cy="22" r="9"  fill="#607D8B"/>
+  <circle cx="31" cy="26" r="7"  fill="#607D8B"/>
+  <rect x="4" y="26" width="27" height="7" fill="#607D8B"/>
+  <!-- rain -->
+  <g stroke="#42A5F5" stroke-width="2.5" stroke-linecap="round">
+    <line x1="11" y1="37" x2="9"  y2="44"/>
+    <line x1="19" y1="37" x2="17" y2="44"/>
+    <line x1="27" y1="37" x2="25" y2="44"/>
+  </g>
+</svg>

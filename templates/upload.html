@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PiFrame — Upload</title>
+  <link rel="stylesheet" href="/static/upload.css">
+</head>
+<body>
+
+  <header>
+    <h1>PiFrame</h1>
+    <p class="subtitle">Drop photos to add them to the slideshow</p>
+  </header>
+
+  <main>
+
+    <!-- Drop zone -->
+    <section class="drop-zone" id="drop-zone" tabindex="0" role="button"
+             aria-label="Drop images here or tap to choose files">
+      <div class="drop-inner">
+        <svg class="drop-icon" viewBox="0 0 48 48" aria-hidden="true">
+          <path d="M24 4 L24 32 M14 22 L24 32 L34 22" stroke="currentColor"
+                stroke-width="3" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <rect x="6" y="38" width="36" height="4" rx="2" fill="currentColor" opacity=".4"/>
+        </svg>
+        <p class="drop-label">Drop images here</p>
+        <p class="drop-sub">or <span class="link-style">tap to choose</span></p>
+      </div>
+      <input type="file" id="file-input" multiple accept="image/*" aria-hidden="true" tabindex="-1">
+    </section>
+
+    <!-- Upload queue -->
+    <section class="section-block" id="queue-section" hidden>
+      <h2>Uploading</h2>
+      <ul id="queue-list" aria-live="polite" aria-label="Upload queue"></ul>
+    </section>
+
+    <!-- Photo grid -->
+    <section class="section-block">
+      <h2>Photos <span id="photo-count" class="count-badge"></span></h2>
+      <p class="empty-msg" id="empty-msg">No photos yet — add some above.</p>
+      <div id="photo-grid" aria-label="Current photos"></div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span id="server-info"></span>
+  </footer>
+
+  <script src="/static/upload.js"></script>
+</body>
+</html>
