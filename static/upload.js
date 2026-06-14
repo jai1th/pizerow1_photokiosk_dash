@@ -370,6 +370,13 @@ loadGrid();
 loadServerInfo();
 
 // ── Settings ───────────────────────────────────────────────────────────────
+const tz1LabelEl   = document.getElementById('tz1-label');
+const tz1TzEl      = document.getElementById('tz1-tz');
+const tz2LabelEl   = document.getElementById('tz2-label');
+const tz2TzEl      = document.getElementById('tz2-tz');
+const tzSaveEl     = document.getElementById('tz-save');
+const tzResetEl    = document.getElementById('tz-reset');
+const tzStatusEl   = document.getElementById('tz-status');
 const slideSecsEl  = document.getElementById('slide-secs');
 const photoOrderEl = document.getElementById('photo-order');
 const slideSaveEl  = document.getElementById('slide-save');
@@ -395,6 +402,10 @@ async function loadSettings() {
     const d = await r.json();
     if (d.slide_seconds) slideSecsEl.value = d.slide_seconds;
     if (d.photo_order)   photoOrderEl.value = d.photo_order;
+    if (Array.isArray(d.tz_zones)) {
+      if (d.tz_zones[0]) { tz1LabelEl.value = d.tz_zones[0].label || ''; tz1TzEl.value = d.tz_zones[0].tz || ''; }
+      if (d.tz_zones[1]) { tz2LabelEl.value = d.tz_zones[1].label || ''; tz2TzEl.value = d.tz_zones[1].tz || ''; }
+    }
     if (d.location_override && d.location_override.city) {
       locCityEl.value = d.location_override.city + (d.location_override.country ? ', ' + d.location_override.country : '');
     }
@@ -402,6 +413,54 @@ async function loadSettings() {
     if (d.calendar_outlook_ics) calOutlookEl.value = d.calendar_outlook_ics;
   } catch (_) {}
 }
+
+tzSaveEl.addEventListener('click', async () => {
+  const zones = [];
+  const l1 = tz1LabelEl.value.trim(), t1 = tz1TzEl.value.trim();
+  const l2 = tz2LabelEl.value.trim(), t2 = tz2TzEl.value.trim();
+  if (l1 && t1) zones.push({label: l1, tz: t1});
+  if (l2 && t2) zones.push({label: l2, tz: t2});
+  tzSaveEl.disabled = true;
+  setStatus(tzStatusEl, '', 'Saving…');
+  try {
+    const r = await fetch('/api/settings/timezones', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({zones}),
+    });
+    const d = await r.json();
+    if (!r.ok) { setStatus(tzStatusEl, 'err', d.error || 'Failed.'); return; }
+    setStatus(tzStatusEl, 'ok', 'Saved — kiosk updates within ~10 seconds.');
+  } catch (e) {
+    setStatus(tzStatusEl, 'err', 'Network error.');
+  } finally {
+    tzSaveEl.disabled = false;
+  }
+});
+
+tzResetEl.addEventListener('click', async () => {
+  tzResetEl.disabled = true;
+  setStatus(tzStatusEl, '', 'Resetting…');
+  try {
+    // Send empty zones array → server stores null → config defaults restored
+    const r = await fetch('/api/settings/timezones', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({zones: []}),
+    });
+    if (r.ok) {
+      tz1LabelEl.value = ''; tz1TzEl.value = '';
+      tz2LabelEl.value = ''; tz2TzEl.value = '';
+      setStatus(tzStatusEl, 'ok', 'Reset to config defaults.');
+    } else {
+      setStatus(tzStatusEl, 'err', 'Failed.');
+    }
+  } catch (e) {
+    setStatus(tzStatusEl, 'err', 'Network error.');
+  } finally {
+    tzResetEl.disabled = false;
+  }
+});
 
 slideSaveEl.addEventListener('click', async () => {
   const secs  = parseInt(slideSecsEl.value, 10);

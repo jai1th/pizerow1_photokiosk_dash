@@ -207,6 +207,15 @@ def slideshow():
     status = _format_status(wx, manifest)
     events = cal.get_events()
 
+    # Main clock timezone: auto-detected from location via Open-Meteo's timezone=auto.
+    # Falls back to the PIFRAME_TZ_MAIN env var (default "" = JS browser local).
+    tz_main = wx.get("timezone") or config.TZ_MAIN
+
+    # Additional zones: settings override config env var.
+    # None / missing key → use config defaults; [] → show no extra zones.
+    s_tz_zones = s.get("tz_zones", None)
+    tz_zones = s_tz_zones if s_tz_zones is not None else config.TZ_ZONES
+
     html = render_template(
         "slideshow.html",
         slide_seconds=runtime_slide_seconds,
@@ -218,8 +227,8 @@ def slideshow():
         w=w,
         status=status,
         events=events,
-        tz_main=config.TZ_MAIN,
-        tz_zones=config.TZ_ZONES,
+        tz_main=tz_main,
+        tz_zones=tz_zones,
         pi_ip=_pi_ip(),
         font_face_css=_FONT_FACE_CSS,
         inline_css=_INLINE_CSS,

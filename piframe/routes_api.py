@@ -133,12 +133,14 @@ def api_delete_photo(content_hash):
 @api_bp.route("/api/settings", methods=["GET"])
 def api_settings_get():
     s = settings_store.load()
+    s_tz_zones = s.get("tz_zones", None)
     return jsonify({
         "location_override":   s.get("location_override"),
         "calendar_google_ics": s.get("calendar_google_ics", ""),
         "calendar_outlook_ics":s.get("calendar_outlook_ics", ""),
         "slide_seconds":       s.get("slide_seconds", config.SLIDE_SECONDS),
         "photo_order":         s.get("photo_order", "oldest"),
+        "tz_zones":            s_tz_zones if s_tz_zones is not None else config.TZ_ZONES,
     })
 
 
@@ -181,6 +183,32 @@ def api_settings_location():
     settings_store.update({"location_override": loc})
     config.WEATHER_CACHE.unlink(missing_ok=True)
     return jsonify({"status": "ok", "location_override": loc})
+
+
+@api_bp.route("/api/settings/timezones", methods=["POST"])
+def api_settings_timezones():
+    data = request.get_json(force=True, silent=True) or {}
+    zones = data.get("zones", [])
+
+    if not isinstance(zones, list) or len(zones) > 2:
+        return jsonify({"error": "zones must be an array of up to 2 items"}), 400
+
+    validated = []
+    for z in zones:
+        label = str(z.get("label", "")).strip()[:20]
+        tz    = str(z.get("tz",    "")).strip()
+        if not label or not tz:
+            continue
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(tz)
+        except Exception:
+            return jsonify({"error": f"unrecognised timezone: {tz}"}), 400
+        validated.append({"label": label, "tz": tz})
+
+    # None = revert to config defaults; [] = explicitly show no extra zones
+    settings_store.update({"tz_zones": validated if zones else None})
+    return jsonify({"status": "ok", "tz_zones": validated})
 
 
 @api_bp.route("/api/settings/slideshow", methods=["POST"])

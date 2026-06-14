@@ -240,6 +240,7 @@ def _merge(loc: dict, forecast: dict, aqi: dict) -> dict:
         },
         "hourly_next12": hourly_next12,
         "daily":         daily,
+        "timezone":      forecast.get("timezone", ""),  # IANA tz for this location
         "fetched_at":    datetime.now(timezone.utc).isoformat(),
         "stale":         False,
     }

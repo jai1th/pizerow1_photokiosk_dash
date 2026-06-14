@@ -326,6 +326,8 @@ h2 {
 .settings-input:focus { border-color: var(--accent); }
 .settings-input::placeholder { color: var(--text-muted); }
 
+.tz-label-input { max-width: 130px; flex-shrink: 0; }
+
 select.settings-input {
   appearance: none;
   -webkit-appearance: none;
