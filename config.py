@@ -49,6 +49,9 @@ TZ_ZONES = [
     for p in TZ_ZONES_RAW.split(",") if ":" in p
 ]
 
+# How often slideshow.js polls /api/photos/version for fast new-photo detection.
+VERSION_POLL_SECONDS = int(os.getenv("PIFRAME_VERSION_POLL_SECONDS", 10))
+
 # Calendar — optional .ics URL (e.g. Google Calendar secret iCal address).
 # Leave empty to show no events.
 CALENDAR_ICS_URL = os.getenv("PIFRAME_CALENDAR_ICS_URL", "")

@@ -29,6 +29,18 @@ def api_photos():
     return jsonify(photos.get_manifest())
 
 
+@api_bp.route("/api/photos/version", methods=["GET"])
+def api_photos_version():
+    """Lightweight version token — count + max mtime, no image reads.
+
+    JS polls this every VERSION_POLL_SECONDS and only fetches the full manifest
+    (triggering a page reload) when the version string changes.
+    """
+    resp = jsonify(photos.get_version())
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @api_bp.route("/photos/<path:filename>")
 def serve_photo(filename):
     # Reject any path that escapes the display dir

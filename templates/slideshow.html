@@ -143,12 +143,13 @@
 <a id="w-credit" href="https://open-meteo.com" tabindex="-1">Weather by Open-Meteo</a>
 
 <script>
-  const SLIDE_SECONDS = {{ slide_seconds }};
-  const FADE_MS       = {{ fade_ms }};
-  const NEXT_OFFSET   = {{ next_offset }};
-  const PHOTO_COUNT   = {{ photo_count }};
-  const TZ_MAIN       = {{ tz_main | tojson }};
-  const TZ_ZONES      = {{ tz_zones | tojson }};
+  const SLIDE_SECONDS        = {{ slide_seconds }};
+  const FADE_MS              = {{ fade_ms }};
+  const VERSION_POLL_SECONDS = {{ version_poll_seconds }};
+  const NEXT_OFFSET          = {{ next_offset }};
+  const PHOTO_COUNT          = {{ photo_count }};
+  const TZ_MAIN              = {{ tz_main | tojson }};
+  const TZ_ZONES             = {{ tz_zones | tojson }};
 </script>
 <script>{{ inline_js | safe }}</script>
 </body>

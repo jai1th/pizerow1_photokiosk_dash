@@ -1,16 +1,19 @@
 'use strict';
-/* Injected by the template: SLIDE_SECONDS, FADE_MS, NEXT_OFFSET, PHOTO_COUNT,
-   TZ_MAIN, TZ_ZONES (JSON array of {label,tz}).
+/* Injected by the template: SLIDE_SECONDS, FADE_MS, VERSION_POLL_SECONDS,
+   NEXT_OFFSET, PHOTO_COUNT, TZ_MAIN, TZ_ZONES.
 
-   Zero subresources — no fetch/XHR/dynamic img.src (ARMv6 WebKit deadlock).
-   Photos, weather, and events are server-rendered. JS only handles:
-     1. Scale-to-fit (letterbox 1920×1080 canvas on any screen)
-     2. Live clocks + date (data-* attribute driven)
+   ARMv6 WebKit note: subresource loads AND fetch()/XHR spin-deadlock on this
+   WebKit2GTK build (WTF lock held during response processing). Only navigation
+   and iframe navigation (FrameLoader path) are safe. Dynamic img.src prohibited.
+   Photos/weather/events are server-rendered; JS handles:
+     1. Scale-to-fit (letterbox 1920×1080 canvas)
+     2. Live clocks + date
      3. "Next" event marker
      4. Crossfade slideshow loop
-     5. Periodic full-page reload (fresh weather + next photo batch) */
+     5. Lightweight photo-version poll → reload on new photos
+     6. Safety-net full-page reload every 5 min */
 
-const REFRESH_MS = 10 * 60 * 1000;  // reload every 10 min
+const REFRESH_MS = 5 * 60 * 1000;   // safety-net reload every 5 min
 const NO_PHOTO_RELOAD = 30 * 1000;  // when empty, re-check sooner
 
 document.documentElement.style.setProperty('--fade-ms', FADE_MS + 'ms');
@@ -109,3 +112,30 @@ if (layers.length === 0) {
   setInterval(nextSlide, SLIDE_SECONDS * 1000);
   setTimeout(reloadPage, REFRESH_MS);
 }
+
+// ── Photo version poll (iframe navigation — ARMv6 WebKit safe) ──────────────
+// fetch() and XHR spin-deadlock on this WebKit2GTK build even with no-store
+// (WTF lock held during network response processing). The FrameLoader path
+// used by iframe navigation is separate from SubresourceLoader and avoids it.
+// One persistent hidden iframe; setting iframe.src is a navigation, not a
+// subresource load. Handler is a single string compare — zero DOM mutations.
+(function () {
+  var _ver   = null;
+  var _frame = document.createElement('iframe');
+  _frame.setAttribute('aria-hidden', 'true');
+  _frame.style.cssText = 'position:fixed;width:0;height:0;border:0;visibility:hidden;pointer-events:none';
+  document.body.appendChild(_frame);
+
+  _frame.addEventListener('load', function () {
+    try {
+      var txt = (_frame.contentDocument || _frame.contentWindow.document).body.textContent;
+      var d   = JSON.parse(txt);
+      if (_ver === null) { _ver = d.version; return; }
+      if (d.version !== _ver) { window.location.replace('/'); }
+    } catch (e) {}
+  });
+
+  setInterval(function () {
+    _frame.src = '/api/photos/version?t=' + Date.now();
+  }, VERSION_POLL_SECONDS * 1000);
+}());

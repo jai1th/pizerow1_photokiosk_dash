@@ -131,6 +131,26 @@ def start_repair_scan() -> None:
 # Manifest
 # ---------------------------------------------------------------------------
 
+def get_version() -> dict:
+    """Cheap directory stat — count + max mtime, no image reads.
+
+    Used by the slideshow version-poll endpoint so JS can detect new photos
+    with a tiny response (~30 bytes) without fetching the full manifest.
+    """
+    try:
+        entries = [
+            f for f in config.DISPLAY_DIR.iterdir()
+            if f.is_file() and f.suffix == ".jpg"
+        ]
+    except OSError:
+        return {"version": "0", "count": 0}
+    count = len(entries)
+    if not entries:
+        return {"version": "0", "count": 0}
+    max_mtime = max(int(f.stat().st_mtime_ns) for f in entries)
+    return {"version": f"{count}_{max_mtime}", "count": count}
+
+
 def get_manifest() -> dict:
     """
     Return only hashes that have both a registry entry and a completed display copy.

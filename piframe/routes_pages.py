@@ -198,6 +198,7 @@ def slideshow():
         "slideshow.html",
         slide_seconds=config.SLIDE_SECONDS,
         fade_ms=config.FADE_MS,
+        version_poll_seconds=config.VERSION_POLL_SECONDS,
         photos=batch,
         photo_count=count,
         next_offset=next_offset,
