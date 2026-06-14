@@ -92,7 +92,7 @@ markNextEvent();
 setInterval(markNextEvent, 60000);
 
 // ── Slideshow ────────────────────────────────────────────────────────────────
-const layers = Array.from(document.querySelectorAll('.slide-layer'));
+const layers = Array.from(document.querySelectorAll('.slide-wrap'));
 let cur = 0;
 
 function reloadPage() { window.location.replace('/?o=' + NEXT_OFFSET); }

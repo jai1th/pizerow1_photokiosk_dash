@@ -57,7 +57,9 @@
     <div class="d4-stage">
       <div id="slideshow">
         {% for src in photos %}
-        <img class="slide-layer{% if loop.first %} visible{% endif %}" src="{{ src }}" alt="">
+        <div class="slide-wrap{% if loop.first %} visible{% endif %}">
+          <img class="slide-layer" src="{{ src }}" alt="">
+        </div>
         {% endfor %}
       </div>
 
