@@ -134,9 +134,11 @@ def api_delete_photo(content_hash):
 def api_settings_get():
     s = settings_store.load()
     return jsonify({
-        "location_override": s.get("location_override"),
+        "location_override":   s.get("location_override"),
         "calendar_google_ics": s.get("calendar_google_ics", ""),
-        "calendar_outlook_ics": s.get("calendar_outlook_ics", ""),
+        "calendar_outlook_ics":s.get("calendar_outlook_ics", ""),
+        "slide_seconds":       s.get("slide_seconds", config.SLIDE_SECONDS),
+        "photo_order":         s.get("photo_order", "oldest"),
     })
 
 
@@ -179,6 +181,33 @@ def api_settings_location():
     settings_store.update({"location_override": loc})
     config.WEATHER_CACHE.unlink(missing_ok=True)
     return jsonify({"status": "ok", "location_override": loc})
+
+
+@api_bp.route("/api/settings/slideshow", methods=["POST"])
+def api_settings_slideshow():
+    data = request.get_json(force=True, silent=True) or {}
+    patch = {}
+
+    if "slide_seconds" in data:
+        try:
+            secs = int(data["slide_seconds"])
+            if not (3 <= secs <= 300):
+                return jsonify({"error": "slide_seconds must be 3–300"}), 400
+            patch["slide_seconds"] = secs
+        except (TypeError, ValueError):
+            return jsonify({"error": "slide_seconds must be an integer"}), 400
+
+    if "order" in data:
+        order = str(data["order"])
+        if order not in ("oldest", "newest", "random"):
+            return jsonify({"error": "order must be oldest, newest, or random"}), 400
+        patch["photo_order"] = order
+
+    if not patch:
+        return jsonify({"error": "provide slide_seconds and/or order"}), 400
+
+    settings_store.update(patch)
+    return jsonify({"status": "ok"})
 
 
 @api_bp.route("/api/settings/calendar", methods=["POST"])

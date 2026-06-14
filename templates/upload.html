@@ -47,6 +47,31 @@
     <section class="section-block" id="settings-section">
       <h2>Settings</h2>
 
+      <!-- Slideshow -->
+      <div class="settings-card">
+        <h3 class="settings-h3">Slideshow</h3>
+        <p class="settings-desc">Controls take effect on the kiosk within ~10 seconds.</p>
+
+        <label class="settings-label" for="slide-secs">Slide duration (seconds)</label>
+        <div class="settings-row">
+          <input type="number" id="slide-secs" class="settings-input" min="3" max="300" placeholder="10">
+        </div>
+
+        <label class="settings-label" for="photo-order" style="margin-top:.75rem">Photo order</label>
+        <div class="settings-row">
+          <select id="photo-order" class="settings-input">
+            <option value="oldest">Oldest first</option>
+            <option value="newest">Newest first</option>
+            <option value="random">Random (reshuffles each reload)</option>
+          </select>
+        </div>
+
+        <div class="settings-row" style="margin-top:.5rem">
+          <button type="button" id="slide-save" class="btn-primary">Save</button>
+        </div>
+        <div id="slide-status" class="settings-status" aria-live="polite"></div>
+      </div>
+
       <!-- Location -->
       <div class="settings-card">
         <h3 class="settings-h3">Location</h3>

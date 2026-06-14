@@ -8,7 +8,8 @@ from pathlib import Path
 from flask import Blueprint, render_template, request, make_response
 
 import config
-from piframe import photos, weather, calendar as cal
+import random as _random
+from piframe import photos, weather, calendar as cal, settings_store
 
 pages_bp = Blueprint("pages", __name__)
 
@@ -174,6 +175,18 @@ def slideshow():
     all_photos = manifest["photos"]
     count = manifest["count"]
 
+    # Runtime overrides from settings (order + slide timing)
+    s = settings_store.load()
+    photo_order = s.get("photo_order", "oldest")
+    runtime_slide_seconds = int(s.get("slide_seconds") or config.SLIDE_SECONDS)
+
+    if photo_order == "newest":
+        all_photos = list(reversed(all_photos))
+    elif photo_order == "random":
+        all_photos = list(all_photos)
+        _random.shuffle(all_photos)
+    # "oldest" is the default sort from get_manifest() — no change needed
+
     try:
         offset = int(request.args.get("o", 0))
     except (TypeError, ValueError):
@@ -196,7 +209,7 @@ def slideshow():
 
     html = render_template(
         "slideshow.html",
-        slide_seconds=config.SLIDE_SECONDS,
+        slide_seconds=runtime_slide_seconds,
         fade_ms=config.FADE_MS,
         version_poll_seconds=config.VERSION_POLL_SECONDS,
         photos=batch,

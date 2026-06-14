@@ -370,6 +370,10 @@ loadGrid();
 loadServerInfo();
 
 // ── Settings ───────────────────────────────────────────────────────────────
+const slideSecsEl  = document.getElementById('slide-secs');
+const photoOrderEl = document.getElementById('photo-order');
+const slideSaveEl  = document.getElementById('slide-save');
+const slideStatEl  = document.getElementById('slide-status');
 const locCityEl    = document.getElementById('loc-city');
 const locSaveEl    = document.getElementById('loc-save');
 const locResetEl   = document.getElementById('loc-reset');
@@ -389,13 +393,40 @@ async function loadSettings() {
   try {
     const r = await fetch('/api/settings');
     const d = await r.json();
+    if (d.slide_seconds) slideSecsEl.value = d.slide_seconds;
+    if (d.photo_order)   photoOrderEl.value = d.photo_order;
     if (d.location_override && d.location_override.city) {
       locCityEl.value = d.location_override.city + (d.location_override.country ? ', ' + d.location_override.country : '');
     }
-    if (d.calendar_google_ics) calGoogleEl.value = d.calendar_google_ics;
+    if (d.calendar_google_ics)  calGoogleEl.value  = d.calendar_google_ics;
     if (d.calendar_outlook_ics) calOutlookEl.value = d.calendar_outlook_ics;
   } catch (_) {}
 }
+
+slideSaveEl.addEventListener('click', async () => {
+  const secs  = parseInt(slideSecsEl.value, 10);
+  const order = photoOrderEl.value;
+  if (!secs || secs < 3 || secs > 300) {
+    setStatus(slideStatEl, 'err', 'Duration must be 3–300 seconds.');
+    return;
+  }
+  slideSaveEl.disabled = true;
+  setStatus(slideStatEl, '', 'Saving…');
+  try {
+    const r = await fetch('/api/settings/slideshow', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({slide_seconds: secs, order}),
+    });
+    const d = await r.json();
+    if (!r.ok) { setStatus(slideStatEl, 'err', d.error || 'Failed.'); return; }
+    setStatus(slideStatEl, 'ok', 'Saved — kiosk updates within ~10 seconds.');
+  } catch (e) {
+    setStatus(slideStatEl, 'err', 'Network error.');
+  } finally {
+    slideSaveEl.disabled = false;
+  }
+});
 
 locSaveEl.addEventListener('click', async () => {
   const city = locCityEl.value.trim();

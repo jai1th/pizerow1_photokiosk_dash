@@ -132,10 +132,10 @@ def start_repair_scan() -> None:
 # ---------------------------------------------------------------------------
 
 def get_version() -> dict:
-    """Cheap directory stat — count + max mtime, no image reads.
+    """Cheap directory stat — count + max mtime + settings mtime, no image reads.
 
-    Used by the slideshow version-poll endpoint so JS can detect new photos
-    with a tiny response (~30 bytes) without fetching the full manifest.
+    Including settings.json mtime means slide-timing/order changes also trigger
+    the kiosk iframe version-poll reload within VERSION_POLL_SECONDS.
     """
     try:
         entries = [
@@ -145,10 +145,10 @@ def get_version() -> dict:
     except OSError:
         return {"version": "0", "count": 0}
     count = len(entries)
-    if not entries:
-        return {"version": "0", "count": 0}
-    max_mtime = max(int(f.stat().st_mtime_ns) for f in entries)
-    return {"version": f"{count}_{max_mtime}", "count": count}
+    max_photo = max((int(f.stat().st_mtime_ns) for f in entries), default=0)
+    settings_path = config.CACHE_DIR / "settings.json"
+    settings_mtime = int(settings_path.stat().st_mtime_ns) if settings_path.exists() else 0
+    return {"version": f"{count}_{max_photo}_{settings_mtime}", "count": count}
 
 
 def get_manifest() -> dict:
