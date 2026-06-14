@@ -156,6 +156,7 @@ html, body {
 .d4-stage {
   grid-area: stage;
   position: relative; overflow: hidden;
+  border-radius: 22px;
   background: transparent; border: none;
   min-width: 0; min-height: 0;
 }
