@@ -141,7 +141,33 @@ def api_settings_get():
         "slide_seconds":       s.get("slide_seconds", config.SLIDE_SECONDS),
         "photo_order":         s.get("photo_order", "oldest"),
         "tz_zones":            s_tz_zones if s_tz_zones is not None else config.TZ_ZONES,
+        "layout":              s.get("layout", "left-bottom"),
+        "adaptive_color":      s.get("adaptive_color", True),
     })
+
+
+_LAYOUTS = {"left-bottom", "right-bottom", "left-top", "right-top"}
+
+
+@api_bp.route("/api/settings/display", methods=["POST"])
+def api_settings_display():
+    data = request.get_json(force=True, silent=True) or {}
+    patch = {}
+
+    if "layout" in data:
+        layout = str(data["layout"])
+        if layout not in _LAYOUTS:
+            return jsonify({"error": "layout must be one of %s" % sorted(_LAYOUTS)}), 400
+        patch["layout"] = layout
+
+    if "adaptive_color" in data:
+        patch["adaptive_color"] = bool(data["adaptive_color"])
+
+    if not patch:
+        return jsonify({"error": "provide layout and/or adaptive_color"}), 400
+
+    settings_store.update(patch)
+    return jsonify({"status": "ok", **patch})
 
 
 @api_bp.route("/api/settings/location", methods=["POST"])

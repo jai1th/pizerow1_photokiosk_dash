@@ -9,7 +9,7 @@
 </head>
 <body>
 <div id="piframe-stage">
-  <div class="kiosk d4">
+  <div class="kiosk d4" data-rail="{{ rail }}" data-weather="{{ weather_side }}">
 
     <!-- ══ LEFT RAIL ════════════════════════════════════════════════ -->
     <div class="d4-rail">
@@ -39,7 +39,7 @@
         <div class="d4-evlist">
           {% set colors = ['#6fd08c','#5aa9f0','#ff6b6b','#6fd08c','#5aa9f0'] %}
           {% for e in events %}
-          <div class="d4-ev" data-mins="{{ e.mins }}" style="--ec:{{ colors[loop.index0 % colors|length] }}">
+          <div class="d4-ev" data-mins="{{ e.mins }}" data-ec-i="{{ loop.index0 }}" style="--ec:{{ colors[loop.index0 % colors|length] }}">
             <span class="d4-evdot"></span>
             <span class="d4-evtime mono">{{ e.time }}</span>
             <span class="serif d4-evtitle">{{ e.title }}</span>
@@ -88,19 +88,19 @@
 
       <!-- Chips: Feels / Humidity / Wind / AQI -->
       <div class="d4-chips">
-        <div class="d4-chip" style="--cc:#ff6b6b">
+        <div class="d4-chip" data-cc-i="0" style="--cc:#ff6b6b">
           <span class="d4-clabel"><span class="d4-cdot"></span>Feels</span>
           <span class="mono d4-cval">{{ w.feels }}{{ w.units }}</span>
         </div>
-        <div class="d4-chip" style="--cc:#5aa9f0">
+        <div class="d4-chip" data-cc-i="1" style="--cc:#5aa9f0">
           <span class="d4-clabel"><span class="d4-cdot"></span>Humidity</span>
           <span class="mono d4-cval">{{ w.humidity }}%</span>
         </div>
-        <div class="d4-chip" style="--cc:#6fd08c">
+        <div class="d4-chip" data-cc-i="2" style="--cc:#6fd08c">
           <span class="d4-clabel"><span class="d4-cdot"></span>Wind</span>
           <span class="mono d4-cval">{{ w.wind }} km/h</span>
         </div>
-        <div class="d4-chip" style="--cc:#6fd08c">
+        <div class="d4-chip" data-cc-i="3" style="--cc:#6fd08c">
           <span class="d4-clabel"><span class="d4-cdot"></span>AQI</span>
           <span class="mono d4-cval">{{ w.aqi }} <em class="d4-cband">{{ w.aqi_label }}</em></span>
         </div>
@@ -152,6 +152,7 @@
   const PHOTO_COUNT          = {{ photo_count }};
   const TZ_MAIN              = {{ tz_main | tojson }};
   const TZ_ZONES             = {{ tz_zones | tojson }};
+  const ADAPTIVE_COLOR       = {{ adaptive_color | tojson }};
 </script>
 <script>{{ inline_js | safe }}</script>
 </body>
