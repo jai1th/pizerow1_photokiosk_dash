@@ -12,14 +12,22 @@
      4. Crossfade slideshow loop
      5. Lightweight photo-version poll → reload on new photos
      6. Safety-net full-page reload every 5 min
-     7. Adaptive color — photo-driven CSS var theming */
+     7. Adaptive color — photo-driven CSS var theming
 
-const REFRESH_MS = 5 * 60 * 1000;   // safety-net reload every 5 min
-const NO_PHOTO_RELOAD = 30 * 1000;  // when empty, re-check sooner
+   ADAPTIVE COLOR DESIGN (ARMv6 safe):
+   canvas.drawImage + getImageData is synchronous and slow on ARMv6 (JPEG
+   re-decode). Calling it inside nextSlide() blocks the JS thread, causing
+   slide timer drift. Fix: pre-extract all themes at startup via a setTimeout
+   chain (one photo per 150 ms, yielding control between each). Slide
+   transitions then do an instant cache lookup — no blocking. If canvas/
+   getImageData fails, _adaptiveOk is set false and no further attempts occur. */
+
+const REFRESH_MS     = 5 * 60 * 1000;
+const NO_PHOTO_RELOAD = 30 * 1000;
 
 document.documentElement.style.setProperty('--fade-ms', FADE_MS + 'ms');
 
-// ── Scale-to-fit ────────────────────────────────────────────────────────────
+// ── Scale-to-fit ─────────────────────────────────────────────────────────────
 const kioskEl = document.querySelector('.kiosk');
 function fit() {
   const s = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -28,9 +36,13 @@ function fit() {
 fit();
 window.addEventListener('resize', fit);
 
-// ── Adaptive color engine ───────────────────────────────────────────────────
-// Photos are data: URIs — same-origin, so canvas.getImageData() is not tainted.
-// Downscale to ~60px before sampling to keep cost minimal on ARMv6.
+// ── Adaptive color engine ─────────────────────────────────────────────────────
+// Photos are data: URIs in the DOM — same-origin, canvas not tainted.
+// All theme computation happens in pre-extraction, not during transitions.
+
+var _adaptiveOk   = typeof ADAPTIVE_COLOR !== 'undefined' && !!ADAPTIVE_COLOR;
+var _themeCache   = {};   // keyed by slide index
+var _firstApply   = true;
 
 function rgb2hsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
@@ -39,45 +51,42 @@ function rgb2hsl(r, g, b) {
   if (mx !== mn) {
     var d = mx - mn;
     s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
-    if (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
+    if      (mx === r) h = (g - b) / d + (g < b ? 6 : 0);
     else if (mx === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
+    else               h = (r - g) / d + 4;
     h /= 6;
   }
   return [h * 360, s, l];
 }
-var _cl = function(v, a, b) { return Math.min(b, Math.max(a, v)); };
-var _hsl  = function(h, s, l)    { return 'hsl(' + h.toFixed(0) + ' ' + (s*100).toFixed(1) + '% ' + (l*100).toFixed(1) + '%)'; };
-var _hsla = function(h, s, l, a) { return 'hsl(' + h.toFixed(0) + ' ' + (s*100).toFixed(1) + '% ' + (l*100).toFixed(1) + '% / ' + a + ')'; };
-var _hueGap = function(a, b) { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; };
+function _cl(v, a, b) { return Math.min(b, Math.max(a, v)); }
+function _hsl(h, s, l)    { return 'hsl(' + h.toFixed(0) + ' ' + (s*100).toFixed(1) + '% ' + (l*100).toFixed(1) + '%)'; }
+function _hsla(h, s, l, a){ return 'hsl(' + h.toFixed(0) + ' ' + (s*100).toFixed(1) + '% ' + (l*100).toFixed(1) + '% / ' + a + ')'; }
+function _hueGap(a, b)    { var d = Math.abs(a - b) % 360; return d > 180 ? 360 - d : d; }
 
 function extractTheme(img) {
   var n = 60;
   var c = document.createElement('canvas'); c.width = n; c.height = n;
   var ctx = c.getContext('2d', { willReadFrequently: true });
-  try { ctx.drawImage(img, 0, 0, n, n); } catch (e) { return null; }
+  try { ctx.drawImage(img, 0, 0, n, n); } catch(e) { return null; }
   var data;
-  try { data = ctx.getImageData(0, 0, n, n).data; } catch (e) { return null; }
+  try { data = ctx.getImageData(0, 0, n, n).data; } catch(e) { return null; }
 
   var buckets = {};
   for (var i = 0; i < data.length; i += 4) {
     var r = data[i], g = data[i+1], b = data[i+2];
     var key = ((r >> 4) << 8) | ((g >> 4) << 4) | (b >> 4);
-    var e = buckets[key];
-    if (!e) { e = { n: 0, r: 0, g: 0, b: 0 }; buckets[key] = e; }
-    e.n++; e.r += r; e.g += g; e.b += b;
+    if (!buckets[key]) buckets[key] = { n: 0, r: 0, g: 0, b: 0 };
+    buckets[key].n++; buckets[key].r += r; buckets[key].g += g; buckets[key].b += b;
   }
   var cols = Object.values(buckets).map(function(e) {
-    var r = e.r / e.n, g = e.g / e.n, b = e.b / e.n;
+    var r = e.r/e.n, g = e.g/e.n, b = e.b/e.n;
     var hsl = rgb2hsl(r, g, b);
     return { h: hsl[0], s: hsl[1], l: hsl[2], n: e.n };
   });
   if (!cols.length) return null;
 
-  // dominant (most frequent) — drives dark background tint
   var dominant = cols.slice().sort(function(a, b) { return b.n - a.n; })[0];
 
-  // vibrant accent — saturated, mid-light, reasonably common
   var accent = null, best = -1;
   for (var j = 0; j < cols.length; j++) {
     var c0 = cols[j];
@@ -87,7 +96,6 @@ function extractTheme(img) {
   }
   if (!accent) accent = dominant;
 
-  // two secondary hues, distinct from accent and each other
   var cand = cols.filter(function(c0) { return c0.s > 0.22; })
                  .sort(function(a, b) { return (b.n * b.s) - (a.n * a.s); });
   var picks = [accent];
@@ -99,37 +107,31 @@ function extractTheme(img) {
     }
     if (ok) picks.push(cand[k]);
   }
-  while (picks.length < 3) {                           // analogous fallbacks
+  while (picks.length < 3) {
     var base = picks[picks.length - 1];
     picks.push({ h: (base.h + 42) % 360, s: _cl(base.s, 0.45, 0.85), l: 0.6 });
   }
 
-  var vivid = function(c0, dl) {
-    return _hsl(c0.h, _cl(c0.s, 0.5, 0.92), _cl((c0.l || 0.6) + (dl || 0), 0.52, 0.72));
-  };
-  var aH = accent.h, aS = _cl(accent.s, 0.45, 0.9);
-  var aL = _cl(accent.l, 0.55, 0.7);
+  function vivid(c0) { return _hsl(c0.h, _cl(c0.s, 0.5, 0.92), _cl(c0.l || 0.6, 0.52, 0.72)); }
+  var aH = accent.h, aS = _cl(accent.s, 0.45, 0.9), aL = _cl(accent.l, 0.55, 0.7);
 
   return {
     accent:     _hsl(aH, aS, aL),
     accentSoft: _hsl(aH, _cl(aS - 0.08, 0.3, 0.8), 0.78),
-    p2: vivid(picks[1]),
-    p3: vivid(picks[2]),
+    p2: vivid(picks[1]), p3: vivid(picks[2]),
     bgA: _hsl(dominant.h, _cl(dominant.s * 0.7, 0.12, 0.5), 0.105),
-    bgB: _hsl(aH,         _cl(aS * 0.5, 0.1, 0.4),           0.075),
-    bgC: _hsl(picks[1].h, _cl(picks[1].s * 0.5, 0.08, 0.4),  0.05),
+    bgB: _hsl(aH, _cl(aS * 0.5, 0.1, 0.4), 0.075),
+    bgC: _hsl(picks[1].h, _cl(picks[1].s * 0.5, 0.08, 0.4), 0.05),
     glowA: _hsla(aH, _cl(aS, 0.4, 0.9), 0.5, 0.18),
     glowB: _hsla(picks[1].h, _cl(picks[1].s, 0.35, 0.85), 0.5, 0.15),
     cardTint: _hsla(aH, _cl(aS, 0.3, 0.7), 0.7, 0.12),
-    // alpha variants for zchip / evcount / clock glow (avoid color-mix())
     accentA13: _hsla(aH, aS, aL, 0.13),
     accentA16: _hsla(aH, aS, aL, 0.16),
     accentA18: _hsla(aH, aS, aL, 0.18),
     accentA28: _hsla(aH, aS, aL, 0.28),
     swatches: [
       _hsl(aH, aS, _cl(accent.l, 0.5, 0.68)),
-      vivid(picks[1]),
-      vivid(picks[2]),
+      vivid(picks[1]), vivid(picks[2]),
       _hsl(dominant.h, _cl(dominant.s, 0.15, 0.6), _cl(dominant.l, 0.3, 0.6)),
     ],
   };
@@ -150,7 +152,6 @@ function applyTheme(root, t) {
   S.setProperty('--accent-a16',  t.accentA16);
   S.setProperty('--accent-a18',  t.accentA18);
   S.setProperty('--accent-a28',  t.accentA28);
-  // per-event and per-chip accents
   root.querySelectorAll('[data-ec-i]').forEach(function(el) {
     el.style.setProperty('--ec', t.swatches[+el.dataset.ecI % t.swatches.length]);
   });
@@ -159,31 +160,44 @@ function applyTheme(root, t) {
   });
 }
 
-var _firstApply = true;
-
-function themeFromVisible() {
-  if (typeof ADAPTIVE_COLOR === 'undefined' || !ADAPTIVE_COLOR) return;
-  var img = document.querySelector('.slide-wrap.visible .slide-layer');
-  if (!img) return;
-  var run = function() {
+/* Pre-extract one slide's theme, yield to browser, then do the next.
+   Called at startup so by the time slides advance, all themes are cached. */
+function _preExtract(idx) {
+  if (!_adaptiveOk || idx >= layers.length) return;
+  var wrap = layers[idx];
+  var img  = wrap && wrap.querySelector('.slide-layer');
+  if (img && img.complete && img.naturalWidth) {
     var t = extractTheme(img);
-    if (!t) return;
-    if (_firstApply) {
-      kioskEl.classList.add('theme-instant');
-      applyTheme(kioskEl, t);
-      requestAnimationFrame(function() {
-        requestAnimationFrame(function() { kioskEl.classList.remove('theme-instant'); });
-      });
-      _firstApply = false;
-    } else {
-      setTimeout(function() { applyTheme(kioskEl, t); }, 480);
+    if (t) {
+      _themeCache[idx] = t;
+    } else if (idx === 0) {
+      _adaptiveOk = false;   // canvas/getImageData not working — disable
+      return;
     }
-  };
-  if (img.complete && img.naturalWidth) run();
-  else img.addEventListener('load', run, { once: true });
+  }
+  setTimeout(function() { _preExtract(idx + 1); }, 150);
 }
 
-// ── Clocks ──────────────────────────────────────────────────────────────────
+/* Apply the cached theme for the currently-visible slide.
+   Called deferred (setTimeout 0) from nextSlide — never blocks the timer. */
+function themeFromVisible() {
+  if (!_adaptiveOk) return;
+  var t = _themeCache[cur];
+  if (!t) return;   // not yet pre-extracted; try again next cycle
+  if (_firstApply) {
+    kioskEl.classList.add('theme-instant');
+    applyTheme(kioskEl, t);
+    requestAnimationFrame(function() {
+      requestAnimationFrame(function() { kioskEl.classList.remove('theme-instant'); });
+    });
+    _firstApply = false;
+  } else {
+    // recolor at crossfade midpoint so palette shifts with the photo
+    setTimeout(function() { applyTheme(kioskEl, t); }, 480);
+  }
+}
+
+// ── Clocks ────────────────────────────────────────────────────────────────────
 function fmtParts(tz) {
   var opts = { hour: 'numeric', minute: '2-digit', hour12: true };
   if (tz) opts.timeZone = tz;
@@ -191,23 +205,18 @@ function fmtParts(tz) {
   var m = s.match(/(.+)\s(AM|PM)/i);
   return m ? { hm: m[1], ap: m[2].toUpperCase() } : { hm: s, ap: '' };
 }
-
 function fmtDate(tz) {
   var opts = { weekday: 'long', month: 'long', day: 'numeric' };
   if (tz) opts.timeZone = tz;
   return new Intl.DateTimeFormat('en-US', opts).format(new Date());
 }
-
-function fmtFull(tz) {
-  var p = fmtParts(tz);
-  return p.hm + ' ' + p.ap;
-}
+function fmtFull(tz) { var p = fmtParts(tz); return p.hm + ' ' + p.ap; }
 
 function tickClocks() {
   document.querySelectorAll('[data-clock]').forEach(function(el) {
-    var tz  = el.dataset.tz  || undefined;
+    var tz   = el.dataset.tz || undefined;
     var mode = el.dataset.clock;
-    var p = fmtParts(tz || (TZ_MAIN || undefined));
+    var p    = fmtParts(tz || (TZ_MAIN || undefined));
     if      (mode === 'HM') el.textContent = p.hm;
     else if (mode === 'AP') el.textContent = p.ap;
     else                    el.textContent = fmtFull(tz || (TZ_MAIN || undefined));
@@ -216,38 +225,35 @@ function tickClocks() {
     el.textContent = fmtDate(el.dataset.tz || (TZ_MAIN || undefined));
   });
 }
-
 tickClocks();
 setInterval(tickClocks, 10000);
 
-// ── Next event marker ────────────────────────────────────────────────────────
+// ── Next event marker ─────────────────────────────────────────────────────────
 function nowMins(tz) {
-  var opts = { hour: '2-digit', minute: '2-digit', hour12: false };
+  var opts  = { hour: '2-digit', minute: '2-digit', hour12: false };
   if (tz) opts.timeZone = tz;
   var parts = new Intl.DateTimeFormat('en-US', opts).formatToParts(new Date());
   var h = +parts.find(function(p) { return p.type === 'hour'; }).value % 24;
   var m = +parts.find(function(p) { return p.type === 'minute'; }).value;
   return h * 60 + m;
 }
-
 function markNextEvent() {
   var rows = Array.from(document.querySelectorAll('.d4-ev[data-mins]'));
   if (!rows.length) return;
   var now = nowMins(TZ_MAIN || undefined);
-  var ni = rows.findIndex(function(r) { return +r.dataset.mins >= now; });
+  var ni  = rows.findIndex(function(r) { return +r.dataset.mins >= now; });
   if (ni === -1) ni = rows.length - 1;
   rows.forEach(function(r, i) {
-    var isNext = i === ni;
+    var isNext = (i === ni);
     r.classList.toggle('is-next', isNext);
     var tag = r.querySelector('.d4-evnow');
     if (tag) tag.style.display = isNext ? '' : 'none';
   });
 }
-
 markNextEvent();
 setInterval(markNextEvent, 60000);
 
-// ── Slideshow ────────────────────────────────────────────────────────────────
+// ── Slideshow ─────────────────────────────────────────────────────────────────
 var layers = Array.from(document.querySelectorAll('.slide-wrap'));
 var cur = 0;
 
@@ -259,24 +265,27 @@ function nextSlide() {
   layers[nxt].classList.add('visible');
   layers[cur].classList.remove('visible');
   cur = nxt;
-  themeFromVisible();
+  // Defer color apply — MUST NOT block here or it delays the next timer tick
+  setTimeout(themeFromVisible, 0);
 }
 
 if (layers.length === 0) {
   setTimeout(reloadPage, NO_PHOTO_RELOAD);
 } else {
-  // layers[0] is server-rendered .visible — apply initial theme immediately
-  themeFromVisible();
+  // Start pre-extracting themes in background, then apply first slide's theme.
+  // 150 ms between photos × up to SLIDE_BATCH photos — completes well before
+  // the first slide transition fires, so all transitions hit the cache.
+  setTimeout(function() { _preExtract(0); }, 200);
+  // Apply first slide theme after pre-extraction of slide 0 has had time to run.
+  setTimeout(themeFromVisible, 400);
   setInterval(nextSlide, SLIDE_SECONDS * 1000);
   setTimeout(reloadPage, REFRESH_MS);
 }
 
-// ── Photo version poll (iframe navigation — ARMv6 WebKit safe) ──────────────
+// ── Photo version poll (iframe navigation — ARMv6 WebKit safe) ───────────────
 // fetch() and XHR spin-deadlock on this WebKit2GTK build even with no-store
 // (WTF lock held during network response processing). The FrameLoader path
 // used by iframe navigation is separate from SubresourceLoader and avoids it.
-// One persistent hidden iframe; setting iframe.src is a navigation, not a
-// subresource load. Handler is a single string compare — zero DOM mutations.
 (function () {
   var _ver   = null;
   var _frame = document.createElement('iframe');
