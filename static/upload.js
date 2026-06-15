@@ -370,6 +370,9 @@ loadGrid();
 loadServerInfo();
 
 // ── Settings ───────────────────────────────────────────────────────────────
+const layoutSaveEl    = document.getElementById('layout-save');
+const layoutStatusEl  = document.getElementById('layout-status');
+const adaptiveToggle  = document.getElementById('adaptive-toggle');
 const tz1LabelEl   = document.getElementById('tz1-label');
 const tz1TzEl      = document.getElementById('tz1-tz');
 const tz2LabelEl   = document.getElementById('tz2-label');
@@ -400,19 +403,58 @@ async function loadSettings() {
   try {
     const r = await fetch('/api/settings');
     const d = await r.json();
+    // Display / layout
+    const layoutRadio = document.querySelector('input[name="layout"][value="' + d.layout + '"]');
+    if (layoutRadio) layoutRadio.checked = true;
+    if (adaptiveToggle) adaptiveToggle.checked = d.adaptive_color !== false;
+    // Slideshow
     if (d.slide_seconds) slideSecsEl.value = d.slide_seconds;
     if (d.photo_order)   photoOrderEl.value = d.photo_order;
+    // Timezones
     if (Array.isArray(d.tz_zones)) {
       if (d.tz_zones[0]) { tz1LabelEl.value = d.tz_zones[0].label || ''; tz1TzEl.value = d.tz_zones[0].tz || ''; }
       if (d.tz_zones[1]) { tz2LabelEl.value = d.tz_zones[1].label || ''; tz2TzEl.value = d.tz_zones[1].tz || ''; }
     }
+    // Location
     if (d.location_override && d.location_override.city) {
       locCityEl.value = d.location_override.city + (d.location_override.country ? ', ' + d.location_override.country : '');
     }
+    // Calendar
     if (d.calendar_google_ics)  calGoogleEl.value  = d.calendar_google_ics;
     if (d.calendar_outlook_ics) calOutlookEl.value = d.calendar_outlook_ics;
   } catch (_) {}
 }
+
+layoutSaveEl.addEventListener('click', async () => {
+  const v = document.querySelector('input[name="layout"]:checked');
+  if (!v) { setStatus(layoutStatusEl, 'err', 'Select a layout.'); return; }
+  layoutSaveEl.disabled = true;
+  setStatus(layoutStatusEl, '', 'Saving…');
+  try {
+    const r = await fetch('/api/settings/display', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ layout: v.value }),
+    });
+    const d = await r.json();
+    if (!r.ok) { setStatus(layoutStatusEl, 'err', d.error || 'Failed.'); return; }
+    setStatus(layoutStatusEl, 'ok', 'Saved — kiosk updates within ~10 seconds.');
+  } catch (e) {
+    setStatus(layoutStatusEl, 'err', 'Network error.');
+  } finally {
+    layoutSaveEl.disabled = false;
+  }
+});
+
+adaptiveToggle.addEventListener('change', async (e) => {
+  try {
+    await fetch('/api/settings/display', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ adaptive_color: e.target.checked }),
+    });
+  } catch (_) {}
+});
 
 tzSaveEl.addEventListener('click', async () => {
   const zones = [];

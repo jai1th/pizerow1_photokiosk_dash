@@ -175,10 +175,13 @@ def slideshow():
     all_photos = manifest["photos"]
     count = manifest["count"]
 
-    # Runtime overrides from settings (order + slide timing)
+    # Runtime overrides from settings (order + slide timing + layout)
     s = settings_store.load()
     photo_order = s.get("photo_order", "oldest")
     runtime_slide_seconds = int(s.get("slide_seconds") or config.SLIDE_SECONDS)
+    layout = s.get("layout", "left-bottom")
+    adaptive_color = bool(s.get("adaptive_color", True))
+    rail_side, bar_side = layout.split("-")
 
     if photo_order == "newest":
         all_photos = list(reversed(all_photos))
@@ -235,6 +238,9 @@ def slideshow():
         inline_js=_INLINE_JS,
         icons=_ICONS,
         backdrop_filter=config.BACKDROP_FILTER,
+        rail=rail_side,
+        weather_side=bar_side,
+        adaptive_color=adaptive_color,
     )
     resp = make_response(html)
     resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"

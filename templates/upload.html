@@ -47,6 +47,79 @@
     <section class="section-block" id="settings-section">
       <h2>Settings</h2>
 
+      <!-- Display / Layout -->
+      <div class="settings-card">
+        <h3 class="settings-h3">Display</h3>
+        <p class="settings-desc">Choose where the clock rail and weather bar sit on the kiosk screen.</p>
+        <div class="layout-grid">
+
+          <label class="layout-opt">
+            <input type="radio" name="layout" value="left-bottom">
+            <div class="lo-thumb" data-rail="left" data-weather="bottom">
+              <div class="lo-r"></div><div class="lo-s"></div><div class="lo-b"></div>
+            </div>
+            <div class="lo-meta">
+              <span class="lo-caption">Rail left · Bar bottom</span>
+              <span class="lo-check"></span>
+            </div>
+          </label>
+
+          <label class="layout-opt">
+            <input type="radio" name="layout" value="right-bottom">
+            <div class="lo-thumb" data-rail="right" data-weather="bottom">
+              <div class="lo-s"></div><div class="lo-r"></div><div class="lo-b"></div>
+            </div>
+            <div class="lo-meta">
+              <span class="lo-caption">Rail right · Bar bottom</span>
+              <span class="lo-check"></span>
+            </div>
+          </label>
+
+          <label class="layout-opt">
+            <input type="radio" name="layout" value="left-top">
+            <div class="lo-thumb" data-rail="left" data-weather="top">
+              <div class="lo-b lo-b-top"></div><div class="lo-r"></div><div class="lo-s"></div>
+            </div>
+            <div class="lo-meta">
+              <span class="lo-caption">Rail left · Bar top</span>
+              <span class="lo-check"></span>
+            </div>
+          </label>
+
+          <label class="layout-opt">
+            <input type="radio" name="layout" value="right-top">
+            <div class="lo-thumb" data-rail="right" data-weather="top">
+              <div class="lo-b lo-b-top"></div><div class="lo-s"></div><div class="lo-r"></div>
+            </div>
+            <div class="lo-meta">
+              <span class="lo-caption">Rail right · Bar top</span>
+              <span class="lo-check"></span>
+            </div>
+          </label>
+
+        </div>
+        <div class="settings-row" style="margin-top:.75rem">
+          <button type="button" id="layout-save" class="btn-primary">Save layout</button>
+        </div>
+        <div id="layout-status" class="settings-status" aria-live="polite"></div>
+      </div>
+
+      <!-- Color / Adaptive -->
+      <div class="settings-card">
+        <div class="settings-row" style="align-items:center;gap:.5rem;flex-wrap:nowrap">
+          <h3 class="settings-h3">Color</h3>
+          <span class="settings-badge">STANDARD</span>
+        </div>
+        <p class="settings-desc">Recolors the frame to match the dominant colors of each photo automatically. On by default.</p>
+        <div class="settings-row" style="align-items:center;gap:.75rem;margin-top:.25rem">
+          <label class="toggle-wrap" aria-label="Enable adaptive color">
+            <input type="checkbox" id="adaptive-toggle">
+            <span class="toggle-slider"></span>
+          </label>
+          <span style="font-size:.85rem">Adaptive color</span>
+        </div>
+      </div>
+
       <!-- Slideshow -->
       <div class="settings-card">
         <h3 class="settings-h3">Slideshow</h3>

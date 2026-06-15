@@ -1,7 +1,8 @@
 /* PiFrame slideshow — Dark Glass / Matcha theme (Direction 4)
    Fixed 1920×1080 canvas, scaled to the display via JS transform.
    backdrop-filter gated behind @supports — on ARMv6 (compositing
-   disabled) it no-ops and the translucent tint reads as glass already. */
+   disabled) it no-ops and the translucent tint reads as glass already.
+   Color literals replaced with CSS vars for adaptive theming. */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -34,8 +35,20 @@ html, body {
 
 /* ── D4 root grid ───────────────────────────────────────────────── */
 .d4 {
-  --matcha:        #6fd08c;
-  --matcha-bright: #8fe0a6;
+  /* ── Theme CSS vars — rewritten by JS on each slide change ── */
+  --accent:        #6fd08c;
+  --accent-soft:   #8fe0a6;
+  --accent-a13:    rgba(111,208,140,.13);
+  --accent-a16:    rgba(111,208,140,.16);
+  --accent-a18:    rgba(111,208,140,.18);
+  --accent-a28:    rgba(111,208,140,.28);
+  --bg-a:          #131218;
+  --bg-b:          #100e14;
+  --bg-c:          #0c0b10;
+  --glow-a:        rgba(111,208,140,.14);
+  --glow-b:        rgba(90,169,240,.13);
+  --card-tint:     rgba(255,255,255,.07);
+  /* ── Fixed palette ── */
   --blue:          #5aa9f0;
   --red:           #ff6b6b;
   --text:          #f5f2f8;
@@ -44,6 +57,7 @@ html, body {
   --line:          rgba(255,255,255,.12);
   --surf:          #1c1b21;
 
+  /* Default: rail left, weather/bar bottom */
   display: grid;
   grid-template-columns: 384px 1fr;
   grid-template-rows: 1fr 200px;
@@ -51,10 +65,35 @@ html, body {
   gap: 20px; padding: 24px;
   color: var(--text);
   background:
-    radial-gradient(58% 54% at 8% 6%,   rgba(111,208,140,.14), transparent 60%),
-    radial-gradient(60% 56% at 92% 94%, rgba(90,169,240,.13),  transparent 62%),
-    linear-gradient(140deg, #131218 0%, #100e14 60%, #0c0b10 100%);
+    radial-gradient(58% 54% at 8% 6%,   var(--glow-a), transparent 60%),
+    radial-gradient(60% 56% at 92% 94%, var(--glow-b),  transparent 62%),
+    linear-gradient(140deg, var(--bg-a) 0%, var(--bg-b) 60%, var(--bg-c) 100%);
 }
+
+/* ── Layout combinations via data-attributes ────────────────────── */
+.kiosk.d4[data-rail="right"] {
+  grid-template-columns: 1fr 384px;
+  grid-template-areas: "stage rail" "bottom bottom";
+}
+.kiosk.d4[data-weather="top"] {
+  grid-template-rows: 200px 1fr;
+  grid-template-areas: "bottom bottom" "rail stage";
+}
+.kiosk.d4[data-rail="right"][data-weather="top"] {
+  grid-template-columns: 1fr 384px;
+  grid-template-rows: 200px 1fr;
+  grid-template-areas: "bottom bottom" "stage rail";
+}
+
+/* ── Adaptive color: smooth transitions on concrete properties ──── */
+.d4-card, .d4-zchip, .d4-chip, .d4-evnow, .d4-evdot, .d4-cdot, .d4-statusdot,
+.d4-ap, .d4-deg, .d4-zlabel, .d4-evhead, .d4-evcount, .d4-dlabel, .d4-cband,
+.d4-cval, .d4-evtime, .d4-rbar {
+  transition: color .9s ease, background-color .9s ease, background .9s ease,
+              border-color .9s ease, box-shadow .9s ease, fill .9s ease;
+}
+/* First palette applied instantly — no color sweep on initial load */
+.theme-instant, .theme-instant * { transition-duration: 0s !important; }
 
 /* ── Frosted glass card ─────────────────────────────────────────── */
 .d4-card {
@@ -81,25 +120,25 @@ html, body {
 .d4-clock::after {
   content: ""; position: absolute; right: -60px; top: -60px;
   width: 160px; height: 160px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(111,208,140,.18), transparent 70%);
+  background: radial-gradient(circle, var(--accent-a18, rgba(111,208,140,.18)), transparent 70%);
   pointer-events: none;
 }
 
 .d4-time { display: flex; align-items: baseline; gap: 10px; position: relative; }
 .d4-time .mono { font-size: 74px; font-weight: 300; line-height: .9; }
-.d4-ap  { font-size: 25px; color: var(--matcha); font-weight: 400; }
+.d4-ap  { font-size: 25px; color: var(--accent); font-weight: 400; }
 .d4-date { font-size: 18px; color: #c4cdbb; margin-top: 10px; position: relative; }
 
 .d4-zones { display: flex; gap: 12px; margin-top: 20px; position: relative; }
 .d4-zchip {
   flex: 1;
-  background: rgba(111,208,140,.13);
-  border: 1px solid rgba(111,208,140,.28);
+  background: var(--accent-a13, rgba(111,208,140,.13));
+  border: 1px solid var(--accent-a28, rgba(111,208,140,.28));
   border-radius: 16px; padding: 12px 14px;
   display: flex; flex-direction: column; gap: 3px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
 }
-.d4-zlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--matcha); }
+.d4-zlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
 .d4-ztime  { font-size: 20px; color: #fff; font-weight: 300; }
 
 /* ── Events card ────────────────────────────────────────────────── */
@@ -109,13 +148,13 @@ html, body {
 }
 .d4-evhead {
   font-size: 13px; text-transform: uppercase; letter-spacing: .16em;
-  color: var(--matcha);
+  color: var(--accent);
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 10px;
 }
 .d4-evcount {
-  background: rgba(111,208,140,.16);
-  color: var(--matcha);
+  background: var(--accent-a16, rgba(111,208,140,.16));
+  color: var(--accent);
   border-radius: 20px; padding: 2px 11px;
   font-size: 12px; letter-spacing: 0;
 }
@@ -130,18 +169,18 @@ html, body {
 .d4-evlist .d4-ev:last-child { border-bottom: none; }
 .d4-evdot {
   width: 8px; height: 8px; border-radius: 50%;
-  background: var(--ec, var(--matcha));
-  box-shadow: 0 0 8px var(--ec, var(--matcha));
+  background: var(--ec, var(--accent));
+  box-shadow: 0 0 8px var(--ec, var(--accent));
 }
 .d4-ev.is-next .d4-evdot {
-  box-shadow: 0 0 0 4px rgba(111,208,140,.24), 0 0 14px var(--ec, var(--matcha));
+  box-shadow: 0 0 0 4px rgba(111,208,140,.24), 0 0 14px var(--ec, var(--accent));
 }
 .d4-evtime  { font-size: 15px; color: var(--dim); }
-.d4-ev.is-next .d4-evtime { color: var(--ec, var(--matcha)); }
+.d4-ev.is-next .d4-evtime { color: var(--ec, var(--accent)); }
 .d4-evtitle { font-size: 18px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .d4-evnow   {
   font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
-  color: #10140f; background: var(--ec, var(--matcha));
+  color: #10140f; background: var(--ec, var(--accent));
   padding: 3px 9px; border-radius: 20px; font-weight: 600; white-space: nowrap;
 }
 
@@ -196,7 +235,7 @@ html, body {
 }
 .np-title { font-size: 1.4rem; color: var(--text); }
 .np-sub   { font-size: .95rem; color: var(--dim); }
-.np-url   { font-family: "IBM Plex Mono", monospace; font-size: 1rem; color: var(--matcha); margin-top: .3rem; }
+.np-url   { font-family: "IBM Plex Mono", monospace; font-size: 1rem; color: var(--accent); margin-top: .3rem; }
 
 /* ════ BOTTOM BAR ════════════════════════════════════════════════ */
 .d4-bottom {
@@ -209,7 +248,7 @@ html, body {
 .d4-wicon { width: 68px; height: 68px; flex: 0 0 auto; display: block; }
 .d4-wicon svg { width: 100%; height: 100%; display: block; }
 .d4-temp { font-size: 60px; font-weight: 300; line-height: 1; }
-.d4-deg  { font-size: 27px; color: var(--matcha); }
+.d4-deg  { font-size: 27px; color: var(--accent); }
 .d4-cond { font-size: 16px; color: #c4cdbb; margin-top: 2px; }
 
 /* Weather chips */
@@ -221,11 +260,10 @@ html, body {
   border-radius: 16px; padding: 12px 16px;
   display: flex; flex-direction: column; gap: 5px; min-width: 86px;
   box-shadow: inset 0 1px 0 rgba(255,255,255,.16);
-  /* color computed per-chip via inline style --cc */
   background: rgba(255,255,255,.08);
   border: 1px solid rgba(255,255,255,.18);
 }
-/* Per-chip accent tint via inline --cc; precomputed fallbacks below */
+/* Per-chip accent tint: default style selectors (used when adaptive is off) */
 .d4-chip[style*="--cc:#ff6b6b"] {
   background: rgba(255,107,107,.18); border-color: rgba(255,107,107,.32);
 }
@@ -245,7 +283,7 @@ html, body {
   box-shadow: 0 0 8px var(--cc, #fff); flex: 0 0 auto;
 }
 .d4-cval  { font-size: 21px; color: #fff; }
-.d4-cband { font-size: 11px; color: var(--cc, var(--matcha)); font-style: normal; }
+.d4-cband { font-size: 11px; color: var(--cc, var(--accent)); font-style: normal; }
 
 /* Rain bars */
 .d4-rainwrap {
@@ -257,13 +295,13 @@ html, body {
 .d4-rain   { display: flex; align-items: flex-end; gap: 4px; height: 58px; }
 .d4-rbar   {
   flex: 1; min-height: 6px; border-radius: 999px;
-  background: linear-gradient(var(--matcha-bright), rgba(111,208,140,.22));
+  background: linear-gradient(var(--accent-soft), rgba(111,208,140,.22));
 }
 
 /* 3-day forecast */
 .d4-daily { display: flex; gap: 22px; padding: 0 28px; align-self: center; border-left: 1px solid var(--line); }
 .d4-day   { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.d4-dlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--matcha); }
+.d4-dlabel { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--accent); }
 .d4-dicon  { width: 36px; height: 36px; display: block; }
 .d4-dicon svg { width: 100%; height: 100%; display: block; }
 .d4-dtemps { font-size: 15px; color: var(--dim); }
