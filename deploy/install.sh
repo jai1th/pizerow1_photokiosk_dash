@@ -138,7 +138,7 @@ systemctl enable piframe.service piframe-kiosk.service
 
 # ── 5b. Setup hotspot (AP fallback) ───────────────────────────────────────
 info "Installing hotspot packages..."
-apt-get install -y --no-install-recommends hostapd dnsmasq iw
+apt-get install -y --no-install-recommends hostapd dnsmasq iw iptables
 
 # hostapd and dnsmasq are driven exclusively by piframe-netctl, never by their
 # own units. Masking the stock ones stops apt's copies from claiming wlan0 at
