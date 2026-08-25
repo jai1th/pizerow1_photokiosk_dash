@@ -1,0 +1,134 @@
+/* PiFrame setup page — Dark Glass / Matcha, responsive.
+   Rendered on two very different screens: a phone at ~390px joined to the
+   setup hotspot, and the 1920x1080 kiosk itself. Fluid rather than the
+   fixed-canvas approach slideshow.css uses. */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --matcha: #6fd08c;
+  --blue:   #5aa9f0;
+  --red:    #ff6b6b;
+  --text:   #f5f2f8;
+  --dim:    #c2bcce;
+  --faint:  #7a7488;
+  --line:   rgba(255,255,255,.14);
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  min-height: 100%;
+  font-family: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(58% 40% at 8% 4%,   rgba(111,208,140,.16), transparent 60%),
+    radial-gradient(60% 44% at 92% 96%, rgba(90,169,240,.14),  transparent 62%),
+    linear-gradient(160deg, #131218 0%, #100e14 60%, #0c0b10 100%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+  padding: clamp(1rem, 4vw, 2.5rem) clamp(.75rem, 4vw, 2rem);
+}
+
+.mono { font-family: "IBM Plex Mono", ui-monospace, monospace; }
+
+.wrap { width: 100%; max-width: 34rem; margin: 0 auto; }
+
+.hd { margin-bottom: 1.25rem; }
+.hd h1 { font-size: clamp(1.5rem, 5vw, 2rem); font-weight: 500; letter-spacing: -.01em; }
+.sub { color: var(--dim); font-size: .95rem; margin-top: .35rem; line-height: 1.5; }
+
+/* ── Cards ───────────────────────────────────────────────────────────── */
+.card {
+  background: linear-gradient(150deg, rgba(255,255,255,.10), rgba(255,255,255,.04));
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 18px;
+  padding: clamp(1rem, 4vw, 1.5rem);
+  margin-bottom: 1rem;
+  box-shadow: 0 10px 32px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.22);
+}
+.card h2 {
+  font-size: .8rem; text-transform: uppercase; letter-spacing: .14em;
+  color: var(--matcha); font-weight: 500; margin-bottom: .75rem;
+}
+.card.err { border-color: rgba(255,107,107,.42); background: rgba(255,107,107,.10); }
+.card.err h2 { color: var(--red); }
+.card.ok  { border-color: rgba(111,208,140,.42); background: rgba(111,208,140,.10); }
+.card p { color: var(--dim); font-size: .92rem; line-height: 1.55; }
+
+/* ── Form ────────────────────────────────────────────────────────────── */
+.lbl {
+  display: block; font-size: .72rem; text-transform: uppercase;
+  letter-spacing: .12em; color: var(--dim); margin: .9rem 0 .35rem;
+}
+.row { display: flex; gap: .5rem; }
+.row.hidden { display: none; }
+
+.inp {
+  flex: 1; width: 100%;
+  /* 16px minimum stops iOS Safari zooming the viewport on focus, which on a
+     captive-portal sheet leaves the user scrolled sideways with no way back. */
+  font: inherit; font-size: 16px;
+  color: var(--text);
+  background: rgba(0,0,0,.30);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: .7rem .8rem;
+  min-width: 0;
+}
+.inp:focus { outline: 2px solid rgba(111,208,140,.55); outline-offset: 1px; border-color: transparent; }
+
+select.inp { appearance: none; background-image: none; }
+
+.chk {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .85rem; color: var(--dim); margin-top: .5rem;
+}
+.chk input { width: 1rem; height: 1rem; accent-color: var(--matcha); }
+
+.btns { margin-top: 1.1rem; }
+.btn {
+  font: inherit; font-size: .95rem;
+  color: var(--text);
+  background: rgba(255,255,255,.08);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  padding: .7rem 1.1rem;
+  cursor: pointer;
+  /* Comfortably above the 44px tap-target floor on a phone. */
+  min-height: 2.9rem;
+}
+.btn:hover { background: rgba(255,255,255,.13); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.primary {
+  flex: 1;
+  color: #0d140f; font-weight: 600;
+  background: var(--matcha); border-color: transparent;
+}
+.btn.primary:hover { background: #8fe0a6; }
+
+.hint { font-size: .82rem; color: var(--faint); line-height: 1.55; margin-top: .9rem; }
+
+.status { font-size: .88rem; margin-top: .7rem; min-height: 1.2em; }
+.status.work { color: var(--blue); }
+.status.good { color: var(--matcha); }
+.status.bad  { color: var(--red); }
+
+/* ── QR + credentials ────────────────────────────────────────────────── */
+.qr {
+  display: flex; justify-content: center;
+  background: #fff; border-radius: 14px;
+  padding: .75rem; margin: .25rem 0 1rem;
+}
+.qr svg { width: min(220px, 60vw); height: auto; display: block; }
+
+.kv {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: .4rem .9rem; font-size: .9rem; align-items: baseline;
+}
+.kv dt { color: var(--faint); font-size: .72rem; text-transform: uppercase; letter-spacing: .1em; }
+.kv dd { color: var(--text); word-break: break-all; }
+
+details { margin-top: 1.1rem; border-top: 1px solid var(--line); padding-top: .9rem; }
+summary { cursor: pointer; font-size: .85rem; color: var(--dim); }
+summary:hover { color: var(--text); }

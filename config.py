@@ -73,6 +73,10 @@ HOTSPOT_IP = os.getenv("PIFRAME_HOTSPOT_IP", "192.168.4.1")
 HOTSPOT_FALLBACK_SECS = int(os.getenv("PIFRAME_HOTSPOT_FALLBACK_SECS", 60))
 # Seconds to wait for a new network to associate before rolling back to AP.
 HOTSPOT_JOIN_TIMEOUT_SECS = int(os.getenv("PIFRAME_HOTSPOT_JOIN_TIMEOUT_SECS", 45))
+# While the hotspot is up with nobody connected to it, retry the configured
+# network this often, so an unattended frame recovers from a router reboot
+# without anyone present to intervene.
+HOTSPOT_AP_RETRY_SECS = int(os.getenv("PIFRAME_HOTSPOT_AP_RETRY_SECS", 600))
 
 # UI — backdrop-filter (frosted glass blur) is GPU-heavy on ARMv6/compositing-
 # disabled WebKit. Set PIFRAME_BACKDROP_FILTER=1 on a faster board (Zero 2 W).

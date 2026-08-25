@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>PiFrame setup</title>
+  <!-- Inlined for the same reason as the slideshow: this ARMv6 WebKit
+       deadlocks on subresource loads, and the kiosk renders this page too. -->
+  <style>{{ font_face_css | safe }}{{ setup_css | safe }}</style>
+</head>
+<body>
+<main class="wrap">
+
+  <header class="hd">
+    <h1>Frame setup</h1>
+    <p class="sub" id="mode-line">
+      {% if mode == 'ap' %}
+        Setup hotspot is running. The frame is not on your network yet.
+      {% else %}
+        Connected to <strong>{{ ssid or 'a network' }}</strong>{% if ip %} at {{ ip }}{% endif %}.
+      {% endif %}
+    </p>
+  </header>
+
+  {% if last_join and not last_join.ok %}
+  <div class="card err" role="alert">
+    <h2>Last attempt failed</h2>
+    <p>Could not join <strong>{{ last_join.ssid }}</strong>. The password is the
+       usual cause. The hotspot was brought back so you could try again.</p>
+  </div>
+  {% elif last_join and last_join.ok %}
+  <div class="card ok">
+    <h2>Connected</h2>
+    <p>The frame joined <strong>{{ last_join.ssid }}</strong> successfully.</p>
+  </div>
+  {% endif %}
+
+  <!-- Join a network -->
+  <section class="card">
+    <h2>Connect the frame to WiFi</h2>
+
+    <label class="lbl" for="ssid">Network</label>
+    <div class="row">
+      <select id="ssid-pick" class="inp">
+        <option value="">Choose a network…</option>
+        {% for n in networks %}
+        <option value="{{ n.ssid }}">{{ n.ssid }} ({{ n.signal | int }} dBm)</option>
+        {% endfor %}
+        <option value="__manual__">Other / hidden network…</option>
+      </select>
+    </div>
+
+    <div class="row hidden" id="manual-row">
+      <input type="text" id="ssid" class="inp" placeholder="Network name"
+             autocomplete="off" autocapitalize="none" spellcheck="false">
+    </div>
+
+    <label class="lbl" for="psk">Password</label>
+    <div class="row">
+      <input type="password" id="psk" class="inp" placeholder="Network password"
+             autocomplete="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <label class="chk"><input type="checkbox" id="show-psk"> Show password</label>
+
+    <div class="row btns">
+      <button id="join" class="btn primary">Connect</button>
+      <button id="rescan" class="btn">Rescan</button>
+    </div>
+
+    <p class="hint">
+      Connecting drops this hotspot, so this page will stop responding — that is
+      expected. If it works the frame joins your network; if it does not, the
+      hotspot comes back within {{ join_timeout }} seconds so you can retry.
+    </p>
+    <div id="status" class="status" aria-live="polite"></div>
+  </section>
+
+  <!-- Hotspot credentials + QR -->
+  <section class="card">
+    <h2>Setup hotspot</h2>
+    <p class="hint">Shown on the frame's screen when it can't reach a network.</p>
+
+    {% if qr_svg %}
+    <div class="qr">{{ qr_svg | safe }}</div>
+    {% endif %}
+
+    <dl class="kv">
+      <dt>Network</dt><dd class="mono">{{ hotspot_ssid }}</dd>
+      <dt>Password</dt><dd class="mono">{{ hotspot_password }}</dd>
+      <dt>Address</dt><dd class="mono">http://{{ hotspot_ip }}:5000/</dd>
+    </dl>
+
+    <details>
+      <summary>Change hotspot name or password</summary>
+      <label class="lbl" for="hs-ssid">Hotspot name</label>
+      <div class="row">
+        <input type="text" id="hs-ssid" class="inp" value="{{ hotspot_ssid }}"
+               autocomplete="off" spellcheck="false">
+      </div>
+      <label class="lbl" for="hs-psk">Hotspot password (8+ characters)</label>
+      <div class="row">
+        <input type="text" id="hs-psk" class="inp" placeholder="Leave blank to keep current"
+               autocomplete="off" spellcheck="false">
+      </div>
+      <div class="row btns">
+        <button id="save-hs" class="btn">Save</button>
+      </div>
+      <div id="hs-status" class="status" aria-live="polite"></div>
+    </details>
+  </section>
+
+</main>
+<script>{{ setup_js | safe }}</script>
+</body>
+</html>

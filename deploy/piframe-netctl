@@ -39,6 +39,7 @@ DEFAULTS = {
     "hotspot_ip": "192.168.4.1",
     "hotspot_fallback_secs": 60,
     "hotspot_join_timeout_secs": 45,
+    "hotspot_ap_retry_secs": 600,
 }
 
 
@@ -126,6 +127,16 @@ def current_ip():
     return m.group(1) if m else ""
 
 
+def stations_connected():
+    """Is anyone associated to our hotspot right now?
+
+    Guards the periodic retry below: dropping the AP while someone is typing
+    their password would be worse than staying offline a few more minutes.
+    """
+    rc, out = run("iw", "dev", WLAN, "station", "dump")
+    return rc == 0 and "Station" in out
+
+
 def associated():
     """Client-mode link with an address.
 
@@ -188,6 +199,27 @@ def write_ap_configs(cfg):
     os.chmod(DNSMASQ_CONF, 0o644)
 
 
+PORTAL_RULE = ("PREROUTING", "-i", WLAN, "-p", "tcp", "--dport", "80",
+               "-j", "REDIRECT", "--to-port", "5000")
+
+
+def portal_redirect(add):
+    """Send port-80 traffic to Flask on 5000 while the hotspot is up.
+
+    Phones decide whether a network is "signed in" by fetching a known URL on
+    port 80. dnsmasq already answers every name with our address, but without
+    this redirect the probe lands on a closed port, the phone reports no
+    internet, and no captive-portal notification appears — leaving the user to
+    type an IP they were never told.
+    """
+    # Drop any stale copy first so repeated ap-up cannot stack duplicates.
+    while run("iptables", "-t", "nat", "-C", *PORTAL_RULE)[0] == 0:
+        if run("iptables", "-t", "nat", "-D", *PORTAL_RULE)[0] != 0:
+            break
+    if add:
+        run("iptables", "-t", "nat", "-A", *PORTAL_RULE, check=True)
+
+
 def cmd_ap_up():
     cfg = settings()
     if len(str(cfg["hotspot_password"])) < 8:
@@ -203,11 +235,13 @@ def cmd_ap_up():
         cmd_ap_down()
         return 1
     run("systemctl", "start", "piframe-dnsmasq", check=True, timeout=45)
+    portal_redirect(True)
     log("hotspot up: %s at %s" % (cfg["hotspot_ssid"], cfg["hotspot_ip"]))
     return 0
 
 
 def cmd_ap_down():
+    portal_redirect(False)
     run("systemctl", "stop", "piframe-dnsmasq", timeout=45)
     run("systemctl", "stop", "piframe-hostapd", timeout=45)
     run("ip", "addr", "flush", "dev", WLAN)
@@ -338,19 +372,48 @@ def cmd_status():
 
 
 def cmd_watch():
-    """Fall back to AP after a sustained outage, then stay there.
+    """Keep the frame on a network, falling back to the hotspot when it can't.
 
-    Staying put matters: if this kept retrying the client link it would tear
-    the hotspot out from under someone half-way through typing a password.
-    A successful `join` is what returns us to client mode, and this loop then
-    resumes supervising on its own.
+    Two timers, and the second one matters for an unattended frame:
+
+      * no association for hotspot_fallback_secs  -> raise the hotspot
+      * hotspot up, nobody connected to it, for
+        hotspot_ap_retry_secs                     -> retry the real network
+
+    Without the retry a router reboot would strand the frame as a hotspot
+    indefinitely, with nobody present to press anything. With it, the frame
+    self-heals. The stations_connected() check is what stops the retry from
+    interrupting somebody who IS present and half-way through setup.
     """
     cfg = settings()
     grace = int(cfg["hotspot_fallback_secs"])
+    retry = int(cfg["hotspot_ap_retry_secs"])
     down_since = None
+    ap_since = None
+
     while True:
-        if ap_active() or associated():
+        if ap_active():
             down_since = None
+            ap_since = ap_since or time.time()
+            if stations_connected():
+                # Someone is setting up - hold the hotspot and reset the clock.
+                ap_since = time.time()
+            elif time.time() - ap_since >= retry:
+                log("retrying configured network after %ss on hotspot" % retry)
+                cmd_ap_down()
+                deadline = time.time() + int(cfg["hotspot_join_timeout_secs"])
+                while time.time() < deadline and not associated():
+                    time.sleep(3)
+                if associated():
+                    log("rejoined %s" % current_ssid())
+                    ap_since = None
+                else:
+                    log("still unreachable - back to hotspot")
+                    cmd_ap_up()
+                    ap_since = time.time()
+        elif associated():
+            down_since = None
+            ap_since = None
         else:
             now = time.time()
             down_since = down_since or now
@@ -358,6 +421,7 @@ def cmd_watch():
                 log("no association for %ss - falling back to hotspot" % grace)
                 cmd_ap_up()
                 down_since = None
+                ap_since = time.time()
         time.sleep(10)
 
 

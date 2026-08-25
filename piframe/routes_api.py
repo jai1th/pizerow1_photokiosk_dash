@@ -11,7 +11,7 @@ import requests as _requests
 from flask import Blueprint, jsonify, request, send_file, abort
 
 import config
-from piframe import photos, weather, settings_store
+from piframe import photos, weather, settings_store, wifi
 from piframe.util import sha256_fileobj
 
 api_bp = Blueprint("api", __name__)
@@ -296,3 +296,61 @@ def api_status():
         "disk_total_mb": disk.total // (1024 * 1024),
         "pi_ip": pi_ip,
     })
+
+
+# ---------------------------------------------------------------------------
+# WiFi setup
+# ---------------------------------------------------------------------------
+
+@api_bp.route("/api/wifi/status", methods=["GET"])
+def api_wifi_status():
+    data = wifi.status()
+    data["last_join"] = wifi.last_join_result()
+    return jsonify(data)
+
+
+@api_bp.route("/api/wifi/scan", methods=["GET"])
+def api_wifi_scan():
+    return jsonify({"networks": wifi.scan(force=request.args.get("force") == "1")})
+
+
+@api_bp.route("/api/wifi/connect", methods=["POST"])
+def api_wifi_connect():
+    """Accept credentials and switch networks in the background.
+
+    Returns 202, never 200: joining tears down the hotspot this request
+    arrived over, so the caller is disconnected before any result exists.
+    The outcome lands in /api/wifi/status once they can reach us again.
+    """
+    body = request.get_json(silent=True) or {}
+    ssid = (body.get("ssid") or "").strip()
+    psk = body.get("password") or ""
+    accepted, message = wifi.start_join(ssid, psk)
+    if not accepted:
+        return jsonify({"status": "error", "error": message}), 400
+    return jsonify({
+        "status": "accepted",
+        "ssid": ssid,
+        "message": message,
+        "timeout_seconds": config.HOTSPOT_JOIN_TIMEOUT_SECS,
+    }), 202
+
+
+@api_bp.route("/api/wifi/hotspot", methods=["POST"])
+def api_wifi_hotspot():
+    """Update the hotspot's own SSID/password. Applied at next ap-up."""
+    body = request.get_json(silent=True) or {}
+    patch = {}
+    ssid = (body.get("ssid") or "").strip()
+    password = body.get("password") or ""
+    if ssid:
+        patch["hotspot_ssid"] = ssid
+    if password:
+        if len(password) < 8:
+            return jsonify({"status": "error",
+                            "error": "hotspot password must be at least 8 characters"}), 400
+        patch["hotspot_password"] = password
+    if not patch:
+        return jsonify({"status": "error", "error": "nothing to update"}), 400
+    settings_store.update(patch)
+    return jsonify({"status": "ok"})

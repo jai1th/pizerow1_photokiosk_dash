@@ -5,11 +5,11 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
-from flask import Blueprint, render_template, request, make_response
+from flask import Blueprint, render_template, request, make_response, redirect
 
 import config
 import random as _random
-from piframe import photos, weather, calendar as cal, settings_store
+from piframe import photos, weather, calendar as cal, settings_store, wifi, wifi_qr
 
 pages_bp = Blueprint("pages", __name__)
 
@@ -33,6 +33,8 @@ def _read_text(p: Path) -> str:
 
 _INLINE_CSS = _read_text(_STATIC / "slideshow.css")
 _INLINE_JS  = _read_text(_STATIC / "slideshow.js")
+_SETUP_CSS  = _read_text(_STATIC / "setup.css")
+_SETUP_JS   = _read_text(_STATIC / "setup.js")
 _ICONS      = {p.stem: _read_text(p) for p in sorted((_STATIC / "icons").glob("*.svg"))}
 
 
@@ -245,3 +247,55 @@ def slideshow():
 @pages_bp.route("/upload")
 def upload():
     return render_template("upload.html")
+
+
+# ---------------------------------------------------------------------------
+# WiFi setup
+# ---------------------------------------------------------------------------
+
+def _hotspot_creds() -> tuple:
+    stored = settings_store.load()
+    return (stored.get("hotspot_ssid") or config.HOTSPOT_SSID,
+            stored.get("hotspot_password") or config.HOTSPOT_PASSWORD)
+
+
+@pages_bp.route("/setup")
+def setup():
+    st = wifi.status()
+    ssid, password = _hotspot_creds()
+    html = render_template(
+        "setup.html",
+        mode=st.get("mode", "unknown"),
+        ssid=st.get("ssid", ""),
+        ip=st.get("ip", ""),
+        networks=wifi.scan(),
+        last_join=wifi.last_join_result(),
+        hotspot_ssid=ssid,
+        hotspot_password=password,
+        hotspot_ip=config.HOTSPOT_IP,
+        join_timeout=config.HOTSPOT_JOIN_TIMEOUT_SECS,
+        qr_svg=wifi_qr.hotspot_svg(ssid, password),
+        font_face_css=_FONT_FACE_CSS,
+        setup_css=_SETUP_CSS,
+        setup_js=_SETUP_JS,
+    )
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return resp
+
+
+@pages_bp.app_errorhandler(404)
+def _captive_portal(err):
+    """Send unknown paths to /setup while the hotspot is up.
+
+    Phones decide a network needs sign-in by fetching a vendor-specific probe
+    URL (generate_204, hotspot-detect.html, ncsi.txt, ...). dnsmasq already
+    points every name at us and iptables redirects port 80 to Flask, so those
+    probes land here as 404s. Redirecting them is what makes the "sign in to
+    network" sheet open by itself instead of the user having to be told an IP.
+
+    Only in AP mode: in normal operation a 404 should stay a 404.
+    """
+    if wifi.status().get("mode") == "ap":
+        return redirect("/setup", code=302)
+    return err
