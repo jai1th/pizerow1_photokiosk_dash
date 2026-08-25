@@ -1,0 +1,14 @@
+[Unit]
+Description=PiFrame network watchdog (AP fallback)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/opt/piframe/deploy/piframe-netctl watch
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

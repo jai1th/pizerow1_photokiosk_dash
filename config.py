@@ -58,6 +58,22 @@ CALENDAR_ICS_URL = os.getenv("PIFRAME_CALENDAR_ICS_URL", "")
 CALENDAR_CACHE = CACHE_DIR / "calendar.json"
 CALENDAR_REFRESH_SECS = 15 * 60
 
+
+# Setup hotspot — wlan0 falls back to AP mode when no known network is
+# reachable. The Pi Zero W's BCM43438 cannot run AP and client mode at once,
+# so this is a mode switch: while the hotspot is up the frame has no internet
+# and weather/calendar serve from cache.
+# Credentials are shown on the kiosk as a scannable QR (piframe/wifi_qr.py),
+# so they never need to be memorised — but keep the password >= 8 chars or
+# hostapd will refuse to start WPA2.
+HOTSPOT_SSID = os.getenv("PIFRAME_HOTSPOT_SSID", "PiFrame-Setup")
+HOTSPOT_PASSWORD = os.getenv("PIFRAME_HOTSPOT_PASSWORD", "piframe-setup")
+HOTSPOT_IP = os.getenv("PIFRAME_HOTSPOT_IP", "192.168.4.1")
+# Seconds without a wlan0 association before the watchdog switches to AP mode.
+HOTSPOT_FALLBACK_SECS = int(os.getenv("PIFRAME_HOTSPOT_FALLBACK_SECS", 60))
+# Seconds to wait for a new network to associate before rolling back to AP.
+HOTSPOT_JOIN_TIMEOUT_SECS = int(os.getenv("PIFRAME_HOTSPOT_JOIN_TIMEOUT_SECS", 45))
+
 # UI — backdrop-filter (frosted glass blur) is GPU-heavy on ARMv6/compositing-
 # disabled WebKit. Set PIFRAME_BACKDROP_FILTER=1 on a faster board (Zero 2 W).
 BACKDROP_FILTER = os.getenv("PIFRAME_BACKDROP_FILTER", "0") == "1"

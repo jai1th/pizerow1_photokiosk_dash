@@ -1,0 +1,389 @@
+#!/usr/bin/env python3
+"""piframe-netctl - root-privileged wlan0 mode switch for PiFrame.
+
+The Flask app runs as `dietpi` and must never be root, so every privileged
+network action funnels through this one script via a narrowly-scoped sudoers
+rule (see install.sh). Keep it standalone: no third-party imports, and no
+imports from the piframe package, which pulls in Pillow and friends.
+
+The Pi Zero W's BCM43438 cannot run AP and client mode simultaneously, so
+this is a mode switch, not an addition. Exactly one of the two is live.
+
+Subcommands
+    status          JSON: mode, ssid, ip, online
+    scan            JSON list of visible networks (client mode only)
+    ap-up           tear down the client link, bring up the setup hotspot
+    ap-down         tear down the hotspot, rejoin the configured network
+    join SSID PSK   provision a network, verify, roll back to AP on failure
+    watch           supervise: fall back to AP after a sustained outage
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+WLAN = os.environ.get("PIFRAME_WLAN", "wlan0")
+INSTALL_DIR = "/opt/piframe"
+ETC = "/etc/piframe"
+HOSTAPD_CONF = ETC + "/hostapd.conf"
+DNSMASQ_CONF = ETC + "/dnsmasq.conf"
+WPA_CONF = "/etc/wpa_supplicant/wpa_supplicant.conf"
+WPA_BAK = "/etc/wpa_supplicant/wpa_supplicant.conf.piframe-bak"
+SETTINGS = INSTALL_DIR + "/data/cache/settings.json"
+
+DEFAULTS = {
+    "hotspot_ssid": "PiFrame-Setup",
+    "hotspot_password": "piframe-setup",
+    "hotspot_ip": "192.168.4.1",
+    "hotspot_fallback_secs": 60,
+    "hotspot_join_timeout_secs": 45,
+}
+
+
+# -- helpers ---------------------------------------------------------------
+
+def log(msg):
+    print("netctl: " + str(msg), file=sys.stderr, flush=True)
+
+
+def run(*args, check=False, timeout=30):
+    """Run a command, returning (rc, stdout). Never raises on non-zero."""
+    try:
+        p = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+    except (subprocess.TimeoutExpired, FileNotFoundError) as exc:
+        log("%s: %s" % (args[0], exc))
+        return 1, ""
+    if check and p.returncode != 0:
+        log("%s -> rc=%d %s" % (" ".join(args), p.returncode, p.stderr.strip()))
+    return p.returncode, p.stdout
+
+
+def settings():
+    """Config precedence: settings.json > config.py > DEFAULTS.
+
+    config.py imports only os and pathlib, so pulling it in is cheap and keeps
+    one source of truth for the env-var names.
+    """
+    vals = dict(DEFAULTS)
+    try:
+        sys.path.insert(0, INSTALL_DIR)
+        import config
+        for k in vals:
+            v = getattr(config, k.upper(), None)
+            if v is not None:
+                vals[k] = v
+    except Exception as exc:
+        log("config.py unavailable, using built-in defaults (%s)" % exc)
+    try:
+        with open(SETTINGS) as f:
+            stored = json.load(f)
+        for k in vals:
+            if stored.get(k):
+                vals[k] = stored[k]
+    except Exception:
+        pass
+    return vals
+
+
+def country_code():
+    """Reuse the regulatory domain wpa_supplicant already uses.
+
+    Some drivers refuse to start an AP with no country set, and guessing wrong
+    can select a channel that is not legal locally.
+    """
+    try:
+        with open(WPA_CONF) as f:
+            m = re.search(r"^\s*country=([A-Z]{2})", f.read(), re.M)
+        if m:
+            return m.group(1)
+    except OSError:
+        pass
+    return ""
+
+
+# -- interface state -------------------------------------------------------
+
+def ap_active():
+    rc, _ = run("systemctl", "is-active", "--quiet", "piframe-hostapd")
+    return rc == 0
+
+
+def current_ssid():
+    rc, out = run("iw", "dev", WLAN, "link")
+    if rc != 0:
+        return ""
+    m = re.search(r"^\s*SSID:\s*(.+)$", out, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def current_ip():
+    rc, out = run("ip", "-4", "-o", "addr", "show", "dev", WLAN)
+    if rc != 0:
+        return ""
+    m = re.search(r"inet\s+(\d+\.\d+\.\d+\.\d+)", out)
+    return m.group(1) if m else ""
+
+
+def associated():
+    """Client-mode link with an address.
+
+    Deliberately does NOT test internet reachability: a router that is up but
+    WAN-down is still a network we can be reconfigured from, and dropping to
+    AP mode there would be strictly worse.
+    """
+    return bool(current_ssid()) and bool(current_ip())
+
+
+# -- mode switching --------------------------------------------------------
+
+def client_down():
+    run("ifdown", "--force", WLAN, timeout=45)
+    run("pkill", "-f", "wpa_supplicant.*" + WLAN)
+    run("ip", "addr", "flush", "dev", WLAN)
+    # DietPi's interfaces stanza re-enables power save on post-down, which
+    # makes an AP drop its clients. Undo it every time we leave client mode.
+    run("iw", "dev", WLAN, "set", "power_save", "off")
+
+
+def write_ap_configs(cfg):
+    os.makedirs(ETC, mode=0o755, exist_ok=True)
+    ip = cfg["hotspot_ip"]
+    net3 = ip.rsplit(".", 1)[0]
+    cc = country_code()
+
+    lines = [
+        "interface=" + WLAN,
+        "driver=nl80211",
+        "ssid=" + str(cfg["hotspot_ssid"]),
+        "hw_mode=g",
+        "channel=6",
+        "auth_algs=1",
+        "ignore_broadcast_ssid=0",
+        "wpa=2",
+        "wpa_key_mgmt=WPA-PSK",
+        "rsn_pairwise=CCMP",
+        "wpa_passphrase=" + str(cfg["hotspot_password"]),
+    ]
+    if cc:
+        lines.insert(3, "country_code=" + cc)
+    # 0600: hostapd requires the passphrase in plaintext here.
+    fd = os.open(HOSTAPD_CONF, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines) + "\n")
+
+    with open(DNSMASQ_CONF, "w") as f:
+        f.write(
+            "interface=" + WLAN + "\n"
+            "bind-interfaces\n"
+            "listen-address=" + ip + "\n"
+            "dhcp-range=" + net3 + ".10," + net3 + ".100,255.255.255.0,12h\n"
+            "dhcp-option=3," + ip + "\n"
+            "dhcp-option=6," + ip + "\n"
+            # Resolve every name to us so phones trip their captive-portal
+            # check and surface the setup page without being told a URL.
+            "address=/#/" + ip + "\n"
+        )
+    os.chmod(DNSMASQ_CONF, 0o644)
+
+
+def cmd_ap_up():
+    cfg = settings()
+    if len(str(cfg["hotspot_password"])) < 8:
+        log("hotspot password shorter than 8 chars - hostapd will reject WPA2")
+        return 2
+    write_ap_configs(cfg)
+    client_down()
+    run("ip", "link", "set", "dev", WLAN, "up")
+    run("ip", "addr", "add", str(cfg["hotspot_ip"]) + "/24", "dev", WLAN)
+    rc, _ = run("systemctl", "start", "piframe-hostapd", check=True, timeout=45)
+    if rc != 0:
+        log("hostapd failed to start - restoring client mode")
+        cmd_ap_down()
+        return 1
+    run("systemctl", "start", "piframe-dnsmasq", check=True, timeout=45)
+    log("hotspot up: %s at %s" % (cfg["hotspot_ssid"], cfg["hotspot_ip"]))
+    return 0
+
+
+def cmd_ap_down():
+    run("systemctl", "stop", "piframe-dnsmasq", timeout=45)
+    run("systemctl", "stop", "piframe-hostapd", timeout=45)
+    run("ip", "addr", "flush", "dev", WLAN)
+    run("ip", "link", "set", "dev", WLAN, "down")
+    run("ip", "link", "set", "dev", WLAN, "up")
+    run("ifup", WLAN, timeout=60)
+    log("hotspot down, client mode restored")
+    return 0
+
+
+# -- provisioning ----------------------------------------------------------
+
+def wpa_block(ssid, psk):
+    """Prefer the hashed PSK from wpa_passphrase: it keeps the plaintext out
+    of the config and sidesteps quoting entirely. Fall back to a quoted
+    literal for cases wpa_passphrase rejects (PSK outside 8..63 chars, or a
+    non-ASCII SSID).
+    """
+    rc, out = run("wpa_passphrase", ssid, psk)
+    if rc == 0 and "psk=" in out:
+        keep = [l for l in out.splitlines() if not l.strip().startswith("#")]
+        return "\n".join(keep)
+    bs = chr(92)
+    esc_s = ssid.replace(bs, bs + bs).replace('"', bs + '"')
+    esc_p = psk.replace(bs, bs + bs).replace('"', bs + '"')
+    return 'network={\n\tssid="%s"\n\tpsk="%s"\n}' % (esc_s, esc_p)
+
+
+def cmd_join(ssid, psk):
+    cfg = settings()
+    try:
+        with open(WPA_CONF) as f:
+            original = f.read()
+    except OSError:
+        original = ("ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev\n"
+                    "update_config=1\n")
+
+    # Keep the header (ctrl_interface/update_config/country) and drop existing
+    # network blocks, so re-provisioning replaces rather than accumulates.
+    header = re.split(r"^\s*network\s*=\s*\{", original, maxsplit=1, flags=re.M)[0]
+    with open(WPA_BAK, "w") as f:
+        f.write(original)
+    os.chmod(WPA_BAK, 0o600)
+
+    fd = os.open(WPA_CONF, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
+        f.write(header.rstrip() + "\n\n" + wpa_block(ssid, psk) + "\n")
+
+    if ap_active():
+        cmd_ap_down()
+    else:
+        client_down()
+        run("ifup", WLAN, timeout=60)
+
+    deadline = time.time() + int(cfg["hotspot_join_timeout_secs"])
+    while time.time() < deadline:
+        if associated():
+            os.remove(WPA_BAK)
+            log("joined %s as %s" % (current_ssid(), current_ip()))
+            return 0
+        time.sleep(2)
+
+    # Rollback. Without this, one typo strands a headless frame and the only
+    # recovery is pulling the SD card - the exact failure this feature exists
+    # to remove.
+    log("join failed after %ss - rolling back" % cfg["hotspot_join_timeout_secs"])
+    os.replace(WPA_BAK, WPA_CONF)
+    os.chmod(WPA_CONF, 0o600)
+    cmd_ap_up()
+    return 1
+
+
+def parse_scan(out):
+    """Reduce `iw scan` output to one entry per SSID, strongest signal first.
+
+    A single SSID usually appears as several BSSes (mesh nodes, 2.4/5GHz
+    radios); the join form wants one row per network, so keep the strongest
+    sighting. Hidden networks report an empty SSID and are dropped.
+    """
+    nets = {}
+    signal = None
+    for line in out.splitlines():
+        line = line.strip()
+        if line.startswith("BSS "):
+            signal = None
+        elif line.startswith("signal:"):
+            try:
+                signal = float(line.split()[1])
+            except (IndexError, ValueError):
+                signal = None
+        elif line.startswith("SSID:"):
+            ssid = line[5:].strip()
+            strength = signal if signal is not None else -99.0
+            if ssid and (ssid not in nets or strength > nets[ssid]):
+                nets[ssid] = strength
+    ranked = sorted(nets.items(), key=lambda kv: kv[1], reverse=True)
+    return [{"ssid": s, "signal": g} for s, g in ranked]
+
+
+def cmd_scan():
+    """Only meaningful in client mode: hostapd owns the radio in AP mode and
+    the scan comes back empty. The caller caches results before ap-up.
+    """
+    if ap_active():
+        print(json.dumps({"error": "cannot scan while hotspot is active",
+                          "networks": []}))
+        return 1
+    run("ip", "link", "set", "dev", WLAN, "up")
+    rc, out = run("iw", "dev", WLAN, "scan", timeout=45)
+    if rc != 0:
+        print(json.dumps({"error": "scan failed", "networks": []}))
+        return 1
+    print(json.dumps({"networks": parse_scan(out)}))
+    return 0
+
+
+def cmd_status():
+    ap = ap_active()
+    cfg = settings()
+    print(json.dumps({
+        "mode": "ap" if ap else ("client" if associated() else "down"),
+        "ssid": cfg["hotspot_ssid"] if ap else current_ssid(),
+        "ip": current_ip(),
+        "hotspot_ssid": cfg["hotspot_ssid"],
+        "online": (not ap) and associated(),
+    }))
+    return 0
+
+
+def cmd_watch():
+    """Fall back to AP after a sustained outage, then stay there.
+
+    Staying put matters: if this kept retrying the client link it would tear
+    the hotspot out from under someone half-way through typing a password.
+    A successful `join` is what returns us to client mode, and this loop then
+    resumes supervising on its own.
+    """
+    cfg = settings()
+    grace = int(cfg["hotspot_fallback_secs"])
+    down_since = None
+    while True:
+        if ap_active() or associated():
+            down_since = None
+        else:
+            now = time.time()
+            down_since = down_since or now
+            if now - down_since >= grace:
+                log("no association for %ss - falling back to hotspot" % grace)
+                cmd_ap_up()
+                down_since = None
+        time.sleep(10)
+
+
+COMMANDS = {
+    "status": cmd_status,
+    "scan": cmd_scan,
+    "ap-up": cmd_ap_up,
+    "ap-down": cmd_ap_down,
+    "watch": cmd_watch,
+}
+
+
+def main(argv):
+    if len(argv) < 2 or (argv[1] not in COMMANDS and argv[1] != "join"):
+        print(__doc__.strip(), file=sys.stderr)
+        return 2
+    if os.geteuid() != 0:
+        log("must run as root (via the sudoers rule installed by install.sh)")
+        return 2
+    if argv[1] == "join":
+        if len(argv) != 4:
+            log("usage: piframe-netctl join SSID PSK")
+            return 2
+        return cmd_join(argv[2], argv[3])
+    return COMMANDS[argv[1]]()
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))

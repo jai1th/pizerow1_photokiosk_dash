@@ -1,0 +1,11 @@
+[Unit]
+Description=PiFrame setup hotspot (hostapd)
+# Started only by piframe-netctl ap-up, never at boot. The stock hostapd.service
+# is masked by install.sh so apt's copy can never race this one for wlan0.
+
+[Service]
+Type=simple
+ExecStart=/usr/sbin/hostapd /etc/piframe/hostapd.conf
+Restart=no
+StandardOutput=journal
+StandardError=journal

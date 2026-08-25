@@ -134,6 +134,46 @@ cp "$INSTALL_DIR/deploy/piframe-kiosk.service" /etc/systemd/system/piframe-kiosk
 systemctl daemon-reload
 systemctl enable piframe.service piframe-kiosk.service
 
+# ── 5b. Setup hotspot (AP fallback) ───────────────────────────────────────
+info "Installing hotspot packages..."
+apt-get install -y --no-install-recommends hostapd dnsmasq iw
+
+# hostapd and dnsmasq are driven exclusively by piframe-netctl, never by their
+# own units. Masking the stock ones stops apt's copies from claiming wlan0 at
+# boot and stranding the frame as an access point with no uplink.
+systemctl disable --now hostapd dnsmasq &>/dev/null || true
+systemctl mask hostapd dnsmasq &>/dev/null || true
+
+mkdir -p /etc/piframe
+
+# piframe-netctl runs as root via sudo. If $SERVICE_USER could write it, the
+# sudoers rule below would be a root escalation — so force ownership here
+# rather than trusting whatever rsync happened to copy.
+chown root:root "$INSTALL_DIR/deploy/piframe-netctl"
+chmod 0755 "$INSTALL_DIR/deploy/piframe-netctl"
+
+# Validate in a temp file first: a malformed drop-in in /etc/sudoers.d breaks
+# sudo system-wide, including the ability to fix it.
+info "Installing sudoers rule for $SERVICE_USER..."
+command -v visudo >/dev/null || die "visudo not found — cannot safely install sudoers rule"
+_sudo_tmp="$(mktemp)"
+echo "$SERVICE_USER ALL=(root) NOPASSWD: $INSTALL_DIR/deploy/piframe-netctl" > "$_sudo_tmp"
+chmod 0440 "$_sudo_tmp"
+visudo -cf "$_sudo_tmp" >/dev/null || { rm -f "$_sudo_tmp"; die "sudoers rule failed validation"; }
+mv "$_sudo_tmp" /etc/sudoers.d/piframe-netctl
+chmod 0440 /etc/sudoers.d/piframe-netctl
+
+cp "$INSTALL_DIR/deploy/piframe-hostapd.service"  /etc/systemd/system/piframe-hostapd.service
+cp "$INSTALL_DIR/deploy/piframe-dnsmasq.service"  /etc/systemd/system/piframe-dnsmasq.service
+cp "$INSTALL_DIR/deploy/piframe-netwatch.service" /etc/systemd/system/piframe-netwatch.service
+systemctl daemon-reload
+
+# NOT enabled here on purpose. piframe-netwatch can switch wlan0 into AP mode,
+# which drops SSH — so it stays off until `piframe-netctl status` has been
+# confirmed correct on this hardware. See README, "Setup hotspot".
+warn "piframe-netwatch installed but NOT enabled — verify status first, then:"
+warn "  systemctl enable --now piframe-netwatch"
+
 # ── 6. Start / restart services ────────────────────────────────────────────
 info "Starting piframe.service..."
 systemctl restart piframe.service
