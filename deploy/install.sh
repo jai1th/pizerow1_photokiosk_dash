@@ -36,19 +36,21 @@ apt-get install -y --no-install-recommends \
 # file" — and piframe.service crash-loops before it ever binds port 5000,
 # which in turn starves piframe-kiosk's readiness poll.
 info "Installing Pillow runtime libraries..."
-apt-get install -y --no-install-recommends libopenjp2-7
-
-# Remaining imaging codecs, best-effort and one at a time: these package names
-# drift between Debian releases (libtiff5/libtiff6, libwebp6/libwebp7) and a
-# rename on a future release shouldn't abort the whole install.  Only
-# libopenjp2-7 above is a hard requirement — it's the one Pillow's wheel
-# always resolves at import.
-for _lib in libtiff6 libtiff5 libjpeg62-turbo libwebp7 libwebp6 \
-            libwebpdemux2 libwebpmux3 liblcms2-2 libfreetype6 zlib1g; do
-    if apt-get install -y --no-install-recommends "$_lib" &>/dev/null; then
-        info "  + $_lib"
-    fi
+# These package names drift between Debian releases (libtiff5/libtiff6,
+# libwebp6/libwebp7), so ask apt which ones this release actually ships and
+# install the survivors in ONE transaction.  apt-cache is a local lookup and
+# costs milliseconds; the previous one-apt-get-per-package loop cost about a
+# minute each on a Pi Zero W, which dominated the whole install.
+_pillow_libs="libopenjp2-7 libtiff6 libtiff5 libjpeg62-turbo libwebp7 libwebp6
+              libwebpdemux2 libwebpmux3 liblcms2-2 libfreetype6 zlib1g"
+apt-cache show libopenjp2-7 &>/dev/null \
+    || die "libopenjp2-7 unavailable in apt — Pillow cannot import without it"
+_available=""
+for _lib in $_pillow_libs; do
+    apt-cache show "$_lib" &>/dev/null && _available="$_available $_lib"
 done
+info "  resolved:$_available"
+apt-get install -y --no-install-recommends $_available
 
 # Kiosk browser: Python GTK+WebKit2 under a minimal X/fbdev stack.
 # surf triggers "Invalid value for lock" on BCM2835/ARMv6 due to a subprocess
