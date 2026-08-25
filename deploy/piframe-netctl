@@ -15,7 +15,8 @@ Subcommands
     ap-up           tear down the client link, bring up the setup hotspot
     ap-down         tear down the hotspot, rejoin the configured network
     join SSID PSK   provision a network, verify, roll back to AP on failure
-    watch           supervise: fall back to AP after a sustained outage
+    boot-check      one-shot: raise the hotspot if the link never comes up
+    watch           continuous supervision (not used by the shipped unit)
 """
 import json
 import os
@@ -371,6 +372,35 @@ def cmd_status():
     return 0
 
 
+def cmd_boot_check():
+    """One-shot: wait for the client link, raise the hotspot if it never comes.
+
+    Deliberately does nothing afterwards. Continuous supervision amplified
+    small problems into large ones: a 60-second router reboot would raise the
+    hotspot, and the frame would sit there until the next retry window with
+    Tailscale down the whole time. Checking once per boot leaves a mid-session
+    blip to wpa_supplicant, which already recovers from those on its own.
+
+    The other half of the trade is a feature, not a cost: a hotspot raised at
+    boot stays up until someone provisions a network. A recipient setting the
+    frame up for the first time gets a stable SSID instead of one that
+    disappears every ten minutes while they are looking for it.
+    """
+    cfg = settings()
+    grace = int(cfg["hotspot_fallback_secs"])
+    deadline = time.time() + grace
+    while time.time() < deadline:
+        if associated():
+            log("associated with %s as %s" % (current_ssid(), current_ip()))
+            return 0
+        time.sleep(5)
+    if ap_active():
+        log("hotspot already up")
+        return 0
+    log("no association after %ss - raising hotspot" % grace)
+    return cmd_ap_up()
+
+
 def cmd_watch():
     """Keep the frame on a network, falling back to the hotspot when it can't.
 
@@ -430,6 +460,7 @@ COMMANDS = {
     "scan": cmd_scan,
     "ap-up": cmd_ap_up,
     "ap-down": cmd_ap_down,
+    "boot-check": cmd_boot_check,
     "watch": cmd_watch,
 }
 

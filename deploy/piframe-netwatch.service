@@ -1,12 +1,17 @@
 [Unit]
-Description=PiFrame network watchdog (AP fallback)
-After=network.target
+Description=PiFrame boot network check (raises setup hotspot if offline)
+After=network-online.target
+Wants=network-online.target
 
 [Service]
-Type=simple
-ExecStart=/opt/piframe/deploy/piframe-netctl watch
-Restart=always
-RestartSec=10
+# One-shot by design, not a supervisor. See cmd_boot_check in piframe-netctl:
+# continuous watching turned a brief outage into a long one, and made the
+# setup SSID vanish periodically while a first-time user was looking for it.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/piframe/deploy/piframe-netctl boot-check
+# Worst case is the full grace period plus bringing hostapd/dnsmasq up.
+TimeoutStartSec=180
 StandardOutput=journal
 StandardError=journal
 
