@@ -1,7 +1,8 @@
 /* PiFrame slideshow — Dark Glass / Matcha theme (Direction 4)
    Fixed 1920×1080 canvas, scaled to the display via JS transform.
-   backdrop-filter gated behind @supports — on ARMv6 (compositing
-   disabled) it no-ops and the translucent tint reads as glass already. */
+   backdrop-filter is opt-in via .fx-blur (PIFRAME_BACKDROP_FILTER=1). It does
+   NOT no-op on ARMv6 — WebKitGTK 4.1 reports support, so @supports alone left
+   it on; the translucent tint reads as glass without it. */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -64,7 +65,7 @@ html, body {
   box-shadow: 0 14px 44px rgba(0,0,0,.38), inset 0 1px 0 rgba(255,255,255,.30);
 }
 @supports (backdrop-filter: blur(1px)) {
-  .d4-card {
+  .fx-blur .d4-card {
     -webkit-backdrop-filter: blur(32px) saturate(125%);
     backdrop-filter: blur(32px) saturate(125%);
   }

@@ -10,14 +10,20 @@ User=root
 # Running as root avoids a WebKit2 IPC shared-memory lock failure that occurs
 # when the service runs as a non-root user (uid 1000) without a login session.
 
-# Poll /api/status until the backend answers (up to 120 s).
-# Tries every 2 s; exits 1 on timeout so systemd will restart and retry.
+# Poll /api/status until the backend answers (up to 60 s).
+# --connect-timeout/--max-time bound each probe: without them a backend that
+# accepts the connection but never replies (all waitress threads busy) hangs
+# curl forever and the whole start job dies on TimeoutStartSec instead of
+# printing the diagnostic below.
+# 60 s is deliberately well under TimeoutStartSec so the "backend not ready"
+# message reaches the journal. Restart=always retries every 3 s afterwards,
+# so a short window here costs nothing.
 ExecStartPre=/bin/bash -c '\
-  for i in $(seq 1 60); do \
-    curl -sf http://127.0.0.1:5000/api/status >/dev/null 2>&1 && exit 0; \
+  for i in $(seq 1 30); do \
+    curl -sf --connect-timeout 2 --max-time 3 http://127.0.0.1:5000/api/status >/dev/null 2>&1 && exit 0; \
     sleep 2; \
   done; \
-  echo "piframe-kiosk: backend not ready after 120 s" >&2; \
+  echo "piframe-kiosk: backend not ready after 60 s" >&2; \
   exit 1'
 
 ExecStartPre=/bin/bash -c 'mkdir -p /tmp/xdg-piframe && chmod 700 /tmp/xdg-piframe'
@@ -33,7 +39,7 @@ ExecStart=/bin/bash -c '\
 
 Restart=always
 RestartSec=3
-TimeoutStartSec=130
+TimeoutStartSec=90
 StandardOutput=journal
 StandardError=journal
 

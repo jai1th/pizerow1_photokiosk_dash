@@ -15,6 +15,33 @@ from gi.repository import Gtk, WebKit2, GLib, Gdk
 
 URL = os.environ.get('PIFRAME_URL', 'http://127.0.0.1:5000/')
 
+
+def _screen_size():
+    """Real X screen geometry.
+
+    xinit starts no window manager, so _NET_WM_STATE_FULLSCREEN goes unhandled
+    and win.fullscreen() would silently do nothing. A hardcoded 1920x1080
+    window then overflows a smaller framebuffer: the page still reports
+    innerWidth/innerHeight as 1920x1080, slideshow.js computes scale 1.0, and
+    the bottom/right of the layout land off-screen behind the panel's letterbox
+    bars. Size to the actual screen and let slideshow.js scale its fixed
+    1920x1080 canvas down to fit.
+    """
+    disp = Gdk.Display.get_default()
+    try:
+        mon = disp.get_primary_monitor() or disp.get_monitor(0)
+        geo = mon.get_geometry()
+        if geo.width > 0 and geo.height > 0:
+            return geo.width, geo.height
+    except Exception as e:
+        print(f'kiosk: monitor geometry warning: {e}', flush=True)
+    scr = Gdk.Screen.get_default()
+    return scr.get_width(), scr.get_height()
+
+
+_SW, _SH = _screen_size()
+print(f'kiosk: screen {_SW}x{_SH}', flush=True)
+
 # Paint everything black. The slideshow refreshes itself with a full-page
 # navigation (the only reliable load path on this ARMv6 WebKit); during that
 # navigation the view briefly shows its base background. Default is white,
@@ -30,7 +57,7 @@ except Exception as e:
 
 win = Gtk.Window()
 win.set_title('PiFrame')
-win.set_default_size(1920, 1080)
+win.set_default_size(_SW, _SH)
 win.set_decorated(False)
 win.connect('destroy', Gtk.main_quit)
 signal.signal(signal.SIGTERM, lambda *_: Gtk.main_quit())
@@ -96,6 +123,7 @@ view = _make_view()
 win.add(view)
 win.show_all()
 win.move(0, 0)
+win.resize(_SW, _SH)
 _set_cursor(win)
 
 print(f'kiosk: loading {URL}', flush=True)

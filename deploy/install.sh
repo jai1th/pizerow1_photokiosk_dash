@@ -30,6 +30,26 @@ apt-get install -y --no-install-recommends \
     rsync \
     python3-pip
 
+# Pillow (installed from piwheels below) links against Debian's system imaging
+# libraries rather than bundling them.  Without these, "from PIL import Image"
+# raises at import time — e.g. "libopenjp2.so.7: cannot open shared object
+# file" — and piframe.service crash-loops before it ever binds port 5000,
+# which in turn starves piframe-kiosk's readiness poll.
+info "Installing Pillow runtime libraries..."
+apt-get install -y --no-install-recommends libopenjp2-7
+
+# Remaining imaging codecs, best-effort and one at a time: these package names
+# drift between Debian releases (libtiff5/libtiff6, libwebp6/libwebp7) and a
+# rename on a future release shouldn't abort the whole install.  Only
+# libopenjp2-7 above is a hard requirement — it's the one Pillow's wheel
+# always resolves at import.
+for _lib in libtiff6 libtiff5 libjpeg62-turbo libwebp7 libwebp6 \
+            libwebpdemux2 libwebpmux3 liblcms2-2 libfreetype6 zlib1g; do
+    if apt-get install -y --no-install-recommends "$_lib" &>/dev/null; then
+        info "  + $_lib"
+    fi
+done
+
 # Kiosk browser: Python GTK+WebKit2 under a minimal X/fbdev stack.
 # surf triggers "Invalid value for lock" on BCM2835/ARMv6 due to a subprocess
 # IPC FD setup failure.  The GTK+WebKit2 Python launcher (deploy/kiosk-browser.py)
@@ -55,6 +75,15 @@ pip3 install \
     --break-system-packages \
     --quiet \
     -r "$PROJECT_DIR/requirements.txt"
+
+# Fail loudly here rather than letting the backend crash-loop after install.
+# A Pillow that imports cleanly is the single best signal that the imaging
+# libraries above are complete for this Debian release.
+info "Verifying Python imports..."
+/usr/bin/python3 -c 'import flask, waitress, requests; from PIL import Image' \
+  || die "Python dependency check failed (see the ImportError above).
+       A missing lib*.so usually means an imaging package is absent for this
+       Debian release — install it and re-run:  sudo bash deploy/install.sh"
 
 # ── 3. Deploy project files ────────────────────────────────────────────────
 info "Syncing project files → $INSTALL_DIR ..."
