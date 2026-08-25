@@ -20,7 +20,28 @@ SERVICE_USER=dietpi
 id -u "$SERVICE_USER" &>/dev/null \
   || die "User '$SERVICE_USER' not found.  Create it or set SERVICE_USER at the top of this script."
 
+# ── Options ────────────────────────────────────────────────────────────────
+# --code-only skips every apt and pip step.  Packages change rarely; code
+# changes constantly, and a full run costs many minutes on a Pi Zero W.  Use
+# it for routine deploys; use a full run after editing requirements.txt or
+# adding a system dependency.
+CODE_ONLY=0
+for _arg in "$@"; do
+  case "$_arg" in
+    --code-only|--fast) CODE_ONLY=1 ;;
+    -h|--help)
+      echo "usage: install.sh [--code-only]"
+      echo "  --code-only   sync code, units and permissions; skip apt/pip"
+      exit 0 ;;
+    *) die "unknown option: $_arg  (try --help)" ;;
+  esac
+done
+# A full `if` rather than `[[ ... ]] && info`: the AND-list form returns
+# non-zero on a normal run, and `set -e` would abort the installer here.
+if [[ $CODE_ONLY -eq 1 ]]; then info "Code-only deploy — skipping apt and pip."; fi
+
 # ── 1. System packages ─────────────────────────────────────────────────────
+if [[ $CODE_ONLY -eq 0 ]]; then
 info "Updating package lists..."
 apt-get update -qq
 
@@ -37,19 +58,25 @@ apt-get install -y --no-install-recommends \
 # which in turn starves piframe-kiosk's readiness poll.
 info "Installing Pillow runtime libraries..."
 # These package names drift between Debian releases (libtiff5/libtiff6,
-# libwebp6/libwebp7), so ask apt which ones this release actually ships and
-# install the survivors in ONE transaction.  apt-cache is a local lookup and
-# costs milliseconds; the previous one-apt-get-per-package loop cost about a
-# minute each on a Pi Zero W, which dominated the whole install.
+# libwebp6/libwebp7), so ask apt which ones this release ships, then install
+# the survivors in ONE transaction.
+#
+# Both "ONE"s are load-bearing on a Pi Zero W.  Every apt-cache invocation
+# loads the full package cache — and rebuilds it when pkgcache.bin cannot be
+# reused, which takes tens of seconds on this board.  Probing eleven packages
+# in a loop appeared to hang.  One apt-cache call, one apt-get call.
+#
+# The `|| true` is required: apt-cache exits non-zero for names this release
+# does not ship, and with `set -o pipefail` that would abort the installer.
 _pillow_libs="libopenjp2-7 libtiff6 libtiff5 libjpeg62-turbo libwebp7 libwebp6
               libwebpdemux2 libwebpmux3 liblcms2-2 libfreetype6 zlib1g"
-apt-cache show libopenjp2-7 &>/dev/null \
-    || die "libopenjp2-7 unavailable in apt — Pillow cannot import without it"
-_available=""
-for _lib in $_pillow_libs; do
-    apt-cache show "$_lib" &>/dev/null && _available="$_available $_lib"
-done
-info "  resolved:$_available"
+_available="$(apt-cache show $_pillow_libs 2>/dev/null \
+    | awk '/^Package: /{print $2}' | sort -u | tr '\n' ' ' || true)"
+case " $_available " in
+    *" libopenjp2-7 "*) ;;
+    *) die "libopenjp2-7 unavailable in apt — Pillow cannot import without it" ;;
+esac
+info "  resolved: $_available"
 apt-get install -y --no-install-recommends $_available
 
 # Kiosk browser: Python GTK+WebKit2 under a minimal X/fbdev stack.
@@ -67,16 +94,19 @@ apt-get install -y --no-install-recommends \
     python3-gi-cairo \
     gir1.2-gtk-3.0 \
     gir1.2-webkit2-4.1
+fi   # CODE_ONLY
 
 # ── 2. Python packages (piwheels pre-built wheels for ARMv6) ───────────────
 info "Installing Python packages..."
 # --break-system-packages is required on Debian Bookworm+ to install outside
 # a venv.  Ignored on older Debian/pip versions that don't know the flag.
+if [[ $CODE_ONLY -eq 0 ]]; then
 pip3 install \
     --extra-index-url https://www.piwheels.org/simple \
     --break-system-packages \
     --quiet \
     -r "$PROJECT_DIR/requirements.txt"
+fi   # CODE_ONLY
 
 # Fail loudly here rather than letting the backend crash-loop after install.
 # A Pillow that imports cleanly is the single best signal that the imaging
@@ -137,8 +167,10 @@ systemctl daemon-reload
 systemctl enable piframe.service piframe-kiosk.service
 
 # ── 5b. Setup hotspot (AP fallback) ───────────────────────────────────────
+if [[ $CODE_ONLY -eq 0 ]]; then
 info "Installing hotspot packages..."
 apt-get install -y --no-install-recommends hostapd dnsmasq iw iptables
+fi   # CODE_ONLY
 
 # hostapd and dnsmasq are driven exclusively by piframe-netctl, never by their
 # own units. Masking the stock ones stops apt's copies from claiming wlan0 at
