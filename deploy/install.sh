@@ -202,11 +202,18 @@ cp "$INSTALL_DIR/deploy/piframe-dnsmasq.service"  /etc/systemd/system/piframe-dn
 cp "$INSTALL_DIR/deploy/piframe-netwatch.service" /etc/systemd/system/piframe-netwatch.service
 systemctl daemon-reload
 
-# NOT enabled here on purpose. piframe-netwatch can switch wlan0 into AP mode,
-# which drops SSH — so it stays off until `piframe-netctl status` has been
-# confirmed correct on this hardware. See README, "Setup hotspot".
-warn "piframe-netwatch installed but NOT enabled — verify status first, then:"
-warn "  systemctl enable --now piframe-netwatch"
+# Enabled by default: a frame that boots somewhere its stored credentials do
+# not work must raise the setup hotspot on its own, with nobody holding an SSH
+# session. That is the whole point of the feature, and an unattended or gifted
+# frame has no other route back.
+#
+# The risk this trades against is that a false negative from associated() would
+# switch wlan0 to AP mode and drop SSH. Confirm `piframe-netctl status` reports
+# the right SSID/IP on a board before shipping it -- and note the watchdog only
+# acts after HOTSPOT_FALLBACK_SECS with no association at all.
+info "Enabling network watchdog (AP fallback)..."
+systemctl enable --now piframe-netwatch \
+    || warn "could not enable piframe-netwatch — the frame will NOT self-recover"
 
 # ── 6. Start / restart services ────────────────────────────────────────────
 info "Starting piframe.service..."
